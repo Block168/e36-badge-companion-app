@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-dark-bg: radial-gradient(ellipse_at_top, #1e293b 0%, #020617 60%);
+  --color-light-bg: radial-gradient(ellipse_at_top, #f1f5f9 0%, #ffffff 60%);
+}
+
+.dark {
+  background: var(--color-dark-bg);
+}
+
+.light {
+  background: var(--color-light-bg);
+}

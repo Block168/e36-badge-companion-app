@@ -1,0 +1,21 @@
+<!--
+  Merge these keys into your project's Info.plist (or the "Info" tab of the
+  target's build settings in Xcode 15+, which generates Info.plist for you).
+-->
+<plist version="1.0">
+<dict>
+    <!-- Required for any CoreBluetooth central usage. -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Connect to your E36 badge over Bluetooth to change its display, brightness, and boot animation.</string>
+
+    <!-- Legacy key some review flows still check on older SDKs. -->
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>Connect to your E36 badge over Bluetooth to change its display, brightness, and boot animation.</string>
+
+    <!-- Enables background BLE state updates + CBCentralManagerOptionRestoreIdentifierKey restoration. -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>bluetooth-central</string>
+    </array>
+</dict>
+</plist>
