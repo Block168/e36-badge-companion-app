@@ -12,6 +12,7 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [previewIdx, setPreviewIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [loopSpeed, setLoopSpeed] = useState(1000);
   const [galleryPickerOpen, setGalleryPickerOpen] = useState(false);
   const disabled = connectionState !== "ready";
   const busy = transfer.phase !== "idle" && transfer.phase !== "complete" && transfer.phase !== "error" && transfer.phase !== "cancelled";
@@ -20,9 +21,9 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
     if (!playing || bootFrames.length === 0) return;
     const t = window.setInterval(() => {
       setPreviewIdx((i) => (i + 1) % bootFrames.length);
-    }, 120);
+    }, loopSpeed);
     return () => window.clearInterval(t);
-  }, [playing, bootFrames.length]);
+  }, [playing, bootFrames.length, loopSpeed]);
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -116,21 +117,43 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
       )}
 
       <div className="mt-5 flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
-        <div>
-          <p className="text-sm font-medium text-white">Custom boot sequence</p>
-          <p className="text-[11px] text-zinc-500">Starts when the badge powers on</p>
+        <div className="w-full space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-white">Custom boot sequence</p>
+              <p className="text-[11px] text-zinc-500">Starts when the badge powers on</p>
+            </div>
+            <button
+              onClick={() => setBootAnim(!bootAnimEnabled)}
+              disabled={disabled}
+              className={`h-6 w-11 rounded-full transition ${bootAnimEnabled ? "bg-blue-600" : "bg-zinc-700"} disabled:opacity-40`}
+            >
+              <span
+                className={`block h-5 w-5 translate-y-0.5 rounded-full bg-white transition ${
+                  bootAnimEnabled ? "translate-x-5" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-[11px] text-zinc-400">
+              <span>Loop speed</span>
+              <span>{loopSpeed >= 60000 ? "1 min" : `${Math.round(loopSpeed / 1000)}s`}</span>
+            </div>
+            <input
+              type="range"
+              min={1000}
+              max={60000}
+              step={1000}
+              value={loopSpeed}
+              disabled={disabled || bootFrames.length < 2}
+              onChange={(e) => setLoopSpeed(Number(e.target.value))}
+              className="w-full accent-blue-500 disabled:opacity-40"
+            />
+            <p className="text-[11px] text-zinc-500">Lower values play faster. Up to 1 minute.</p>
+          </div>
         </div>
-        <button
-          onClick={() => setBootAnim(!bootAnimEnabled)}
-          disabled={disabled}
-          className={`h-6 w-11 rounded-full transition ${bootAnimEnabled ? "bg-blue-600" : "bg-zinc-700"} disabled:opacity-40`}
-        >
-          <span
-            className={`block h-5 w-5 translate-y-0.5 rounded-full bg-white transition ${
-              bootAnimEnabled ? "translate-x-5" : "translate-x-0.5"
-            }`}
-          />
-        </button>
       </div>
 
       <div className="mt-4 space-y-3">
