@@ -20,6 +20,11 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
     (selectedSavedFaceId ? savedFaces.find((f) => f.id === selectedSavedFaceId)?.dataUrl : null) ??
     PRESET_FACES.find((f) => f.index === selectedFace)?.image;
 
+  const activePreviewName =
+    savedFaces.find((f) => f.id === selectedSavedFaceId)?.name ??
+    PRESET_FACES.find((f) => f.index === selectedFace)?.name ??
+    "No selection";
+
   const categories = Array.from(new Set(savedFaces.map((f) => f.category).filter(Boolean))) as string[];
   
   const filteredSavedFaces = savedFaces.filter((face) => {
@@ -37,6 +42,11 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
     if (savedFaceStatus[face.id] === "sending") return; // ignore double-tap
     setSavedFaceStatus((s) => ({ ...s, [face.id]: "sending" }));
     ble.uploadCustomFace(face.name, face.dataUrl);
+  };
+
+  const handleFeaturedFaceTap = (index: number) => {
+    setSelectedSavedFaceId(null);
+    selectFace(index);
   };
 
   // Watch the in-flight transfer to mark the saved face as sent/failed.
@@ -137,8 +147,8 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
           )}
         </div>
         <div className="text-xs text-zinc-400">
-          <p className="font-medium text-zinc-200">Live 480×480 circular preview</p>
-          <p className="mt-0.5">Matches the badge's round IPS display shape 1:1.</p>
+          <p className="font-medium text-zinc-200">{activePreviewName}</p>
+          <p className="mt-0.5">Selected for preview.</p>
         </div>
       </div>
 
@@ -154,7 +164,7 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
           <button
             key={face.index}
             disabled={disabled}
-            onClick={() => selectFace(face.index)}
+            onClick={() => handleFeaturedFaceTap(face.index)}
             className="group relative flex flex-col items-center gap-1.5 disabled:opacity-50"
           >
             <div
