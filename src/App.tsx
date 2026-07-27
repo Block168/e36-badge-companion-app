@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BluetoothConnected, Radio, Sun, Wand2, Image as ImageIcon, Clock } from "lucide-react";
+import { BluetoothConnected, Radio, Sun, Wand2, Image as ImageIcon, Play, Smile, Heart } from "lucide-react";
 import { StatusPill } from "./components/StatusBar";
 import { ConnectScreen } from "./components/ConnectScreen";
 import { FaceGallery } from "./components/FaceGallery";
@@ -16,9 +16,9 @@ type Tab = "connect" | "faces" | "brightness" | "boot" | "history";
 const TABS: { id: Tab; label: string; icon: typeof Radio }[] = [
   { id: "connect", label: "Connect", icon: BluetoothConnected },
   { id: "faces", label: "Gallery", icon: ImageIcon },
-  { id: "brightness", label: "Lighting", icon: Sun },
-  { id: "boot", label: "Startup", icon: Wand2 },
-  { id: "history", label: "Activity", icon: Clock },
+  { id: "brightness", label: "Lighting", icon: Smile },
+  { id: "boot", label: "Startup", icon: Heart },
+  { id: "history", label: "Activity", icon: Play },
 ];
 
 export default function App() {

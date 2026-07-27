@@ -1,6 +1,5 @@
-import { Check, Sparkles, Search, Folder, X, Plus, Loader2, AlertCircle } from "lucide-react";
+import { Check, Sparkles, Search, Folder, X, Loader2, AlertCircle } from "lucide-react";
 import { PRESET_FACES } from "../data/faces";
-import { FACE_TEMPLATES } from "../data/templates";
 import type { BLEManagerApi } from "../hooks/useBLEManager";
 import { useFaceStorage } from "../hooks/useFaceStorage";
 import { useEffect, useState } from "react";
@@ -10,16 +9,14 @@ type SavedFaceStatus = "idle" | "sending" | "sent" | "error";
 
 export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpenUploader: () => void }) {
   const { selectedFace, selectFace, connectionState } = ble;
-  const { savedFaces, deleteFace, saveFace, storageError, clearStorageError } = useFaceStorage();
+  const { savedFaces, deleteFace, storageError, clearStorageError } = useFaceStorage();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSavedFaceId, setSelectedSavedFaceId] = useState<string | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [savedFaceStatus, setSavedFaceStatus] = useState<Record<string, SavedFaceStatus>>({});
   const disabled = connectionState !== "ready";
 
   const activePreview =
-    (selectedTemplateId ? FACE_TEMPLATES.find((t) => t.id === selectedTemplateId)?.dataUrl : null) ??
     (selectedSavedFaceId ? savedFaces.find((f) => f.id === selectedSavedFaceId)?.dataUrl : null) ??
     PRESET_FACES.find((f) => f.index === selectedFace)?.image;
 
@@ -31,15 +28,8 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
     return matchesSearch && matchesCategory;
   });
 
-  const handleTemplateSelect = (template: typeof FACE_TEMPLATES[0]) => {
-    setSelectedTemplateId(template.id);
-    setSelectedSavedFaceId(null);
-    saveFace(template.name, template.dataUrl, template.category);
-  };
-
   const handleSavedFaceTap = (face: typeof savedFaces[number]) => {
     setSelectedSavedFaceId(face.id);
-    setSelectedTemplateId(null);
     if (connectionState !== "ready") {
       // Not connected: just preview locally until the badge is online.
       return;
@@ -74,8 +64,6 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
     }, 2500);
     return () => window.clearTimeout(t);
   }, [savedFaceStatus]);
-
-  const savedTemplateNames = new Set(savedFaces.map((f) => f.name));
 
   return (
     <div className="flex h-full flex-col overflow-y-auto px-5 py-6">
@@ -185,42 +173,6 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
             <span className="text-[10px] text-zinc-400">{face.name}</span>
           </button>
         ))}
-      </div>
-
-      <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-zinc-500">Designs</p>
-      <div className="grid grid-cols-3 gap-3">
-        {FACE_TEMPLATES.map((template) => {
-          const alreadySaved = savedTemplateNames.has(template.name);
-          return (
-            <button
-              key={template.id}
-              onClick={() => !alreadySaved && handleTemplateSelect(template)}
-              disabled={alreadySaved}
-              className="group relative flex flex-col items-center gap-1.5 disabled:opacity-50"
-            >
-              <div
-                className={cn(
-                  "relative h-20 w-20 overflow-hidden rounded-full ring-2 ring-offset-2 ring-offset-zinc-950 transition",
-                  selectedTemplateId === template.id ? "ring-indigo-500" : "ring-transparent group-hover:ring-zinc-700"
-                )}
-              >
-                <img src={template.dataUrl} className="h-full w-full object-cover" alt={template.name} />
-                {alreadySaved && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <Check className="h-5 w-5 text-emerald-400 drop-shadow" />
-                  </div>
-                )}
-                {!alreadySaved && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
-                    <Plus className="h-5 w-5 text-white drop-shadow" />
-                  </div>
-                )}
-              </div>
-              <span className="text-[10px] text-zinc-400">{template.name}</span>
-              <span className="text-[9px] text-zinc-600">{template.category}</span>
-            </button>
-          );
-        })}
       </div>
 
       <div className="mb-2 mt-6 flex items-center justify-between">
