@@ -19,8 +19,9 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
   const disabled = connectionState !== "ready";
 
   const activePreview =
-    PRESET_FACES.find((f) => f.index === selectedFace)?.image ??
-    (selectedSavedFaceId ? savedFaces.find((f) => f.id === selectedSavedFaceId)?.dataUrl : null);
+    (selectedTemplateId ? FACE_TEMPLATES.find((t) => t.id === selectedTemplateId)?.dataUrl : null) ??
+    (selectedSavedFaceId ? savedFaces.find((f) => f.id === selectedSavedFaceId)?.dataUrl : null) ??
+    PRESET_FACES.find((f) => f.index === selectedFace)?.image;
 
   const categories = Array.from(new Set(savedFaces.map((f) => f.category).filter(Boolean))) as string[];
   
@@ -32,11 +33,13 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
 
   const handleTemplateSelect = (template: typeof FACE_TEMPLATES[0]) => {
     setSelectedTemplateId(template.id);
+    setSelectedSavedFaceId(null);
     saveFace(template.name, template.dataUrl, template.category);
   };
 
   const handleSavedFaceTap = (face: typeof savedFaces[number]) => {
     setSelectedSavedFaceId(face.id);
+    setSelectedTemplateId(null);
     if (connectionState !== "ready") {
       // Not connected: just preview locally until the badge is online.
       return;
@@ -78,8 +81,8 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
     <div className="flex h-full flex-col overflow-y-auto px-5 py-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-white">Face Gallery</h2>
-          <p className="text-xs text-zinc-500">Tap a face to send it to the badge instantly.</p>
+          <h2 className="text-lg font-semibold text-white">Gallery</h2>
+          <p className="text-xs text-zinc-500">Tap a design to apply it.</p>
         </div>
       </div>
 
@@ -88,7 +91,7 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
           <input
             type="text"
-            placeholder="Search faces..."
+            placeholder="Search designs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 pl-8 text-xs text-white placeholder:text-zinc-500 outline-none focus:border-blue-500"
@@ -153,11 +156,11 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
 
       {disabled && (
         <p className="mt-3 rounded-lg bg-amber-950/60 px-3 py-2 text-[11px] text-amber-300">
-          Connect to the badge to write face selections over BLE. You can still browse below.
+          Connect to use face selection.
         </p>
       )}
 
-      <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-zinc-500">Presets</p>
+      <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-zinc-500">Featured</p>
       <div className="grid grid-cols-3 gap-3">
         {PRESET_FACES.map((face) => (
           <button
@@ -184,7 +187,7 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
         ))}
       </div>
 
-      <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-zinc-500">Templates</p>
+      <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-zinc-500">Designs</p>
       <div className="grid grid-cols-3 gap-3">
         {FACE_TEMPLATES.map((template) => {
           const alreadySaved = savedTemplateNames.has(template.name);
@@ -221,7 +224,7 @@ export function FaceGallery({ ble, onOpenUploader }: { ble: BLEManagerApi; onOpe
       </div>
 
       <div className="mb-2 mt-6 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Saved Faces</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">My Faces</p>
         <button
           onClick={onOpenUploader}
           className="flex items-center gap-1 rounded-full bg-zinc-800 px-3 py-1.5 text-[11px] font-medium text-zinc-200 hover:bg-zinc-700"

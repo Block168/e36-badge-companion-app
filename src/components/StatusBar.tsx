@@ -13,7 +13,7 @@ const STATE_META: Record<ConnectionState, { label: string; tone: string }> = {
   disconnected: { label: "Disconnected", tone: "text-red-300 bg-red-950" },
 };
 
-export function StatusPill({ state, rssi, name }: { state: ConnectionState; rssi?: number; name?: string }) {
+export function StatusPill({ state, name }: { state: ConnectionState; rssi?: number; name?: string }) {
   const meta = STATE_META[state];
   const isBusy = state === "scanning" || state === "connecting" || state === "discoveringServices";
   const Icon = state === "poweredOff" ? BluetoothOff : state === "ready" ? BluetoothConnected : Bluetooth;
@@ -29,9 +29,6 @@ export function StatusPill({ state, rssi, name }: { state: ConnectionState; rssi
       <span>{meta.label}</span>
       {state === "ready" && name && (
         <span className="hidden text-zinc-400 sm:inline">· {name}</span>
-      )}
-      {state === "ready" && typeof rssi === "number" && (
-        <span className="text-zinc-500">{rssi} dBm</span>
       )}
     </div>
   );

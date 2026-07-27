@@ -13,7 +13,7 @@ export function TransferHistory({ theme }: TransferHistoryProps) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className={cn("text-sm", theme === "dark" ? "text-zinc-500" : "text-slate-500")}>
-          Loading history...
+          Loading...
         </div>
       </div>
     );
@@ -24,10 +24,10 @@ export function TransferHistory({ theme }: TransferHistoryProps) {
       <div className="flex h-full flex-col items-center justify-center px-6 text-center">
         <Clock className={cn("h-12 w-12 mb-3", theme === "dark" ? "text-zinc-700" : "text-slate-300")} />
         <p className={cn("text-sm font-medium", theme === "dark" ? "text-zinc-400" : "text-slate-600")}>
-          No transfer history yet
+          No activity yet
         </p>
         <p className={cn("mt-1 text-xs", theme === "dark" ? "text-zinc-600" : "text-slate-400")}>
-          Transfer history will appear here after you upload faces to your badge.
+          Your uploads will appear here.
         </p>
       </div>
     );
@@ -39,7 +39,7 @@ export function TransferHistory({ theme }: TransferHistoryProps) {
         <div className="flex items-center gap-1.5">
           <Clock className={cn("h-4 w-4", theme === "dark" ? "text-zinc-400" : "text-slate-600")} />
           <span className={cn("text-xs font-semibold uppercase tracking-wide", theme === "dark" ? "text-zinc-500" : "text-slate-500")}>
-            Transfer History
+            Activity
           </span>
         </div>
         <button

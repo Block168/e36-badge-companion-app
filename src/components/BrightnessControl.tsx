@@ -4,12 +4,11 @@ import type { BLEManagerApi } from "../hooks/useBLEManager";
 export function BrightnessControl({ ble }: { ble: BLEManagerApi }) {
   const { brightness, setBrightness, connectionState, pendingByteWrite } = ble;
   const disabled = connectionState !== "ready";
-  const byteValue = Math.round((brightness / 100) * 255);
 
   return (
     <div className="flex h-full flex-col px-5 py-6">
-      <h2 className="text-lg font-semibold text-white">Brightness</h2>
-      
+      <h2 className="text-lg font-semibold text-white">Lighting</h2>
+      <p className="text-xs text-zinc-500">Set how bright the display should be.</p>
 
       <div className="mt-8 flex flex-col items-center">
         <div className="relative flex h-44 w-44 items-center justify-center rounded-full border-4 border-zinc-800">
@@ -23,7 +22,6 @@ export function BrightnessControl({ ble }: { ble: BLEManagerApi }) {
           />
           <div className="text-center">
             <p className="text-3xl font-bold text-white">{brightness}%</p>
-            <p className="text-[11px] text-zinc-500">byte {byteValue}</p>
           </div>
         </div>
       </div>
@@ -44,11 +42,9 @@ export function BrightnessControl({ ble }: { ble: BLEManagerApi }) {
 
       {disabled && (
         <p className="mt-4 rounded-lg bg-amber-950/60 px-3 py-2 text-[11px] text-amber-300">
-          Connect to read the current brightness characteristic and enable live writes.
+          Connect to adjust brightness.
         </p>
       )}
-
-      
     </div>
   );
 }

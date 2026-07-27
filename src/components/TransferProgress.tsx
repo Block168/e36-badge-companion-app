@@ -3,10 +3,10 @@ import type { TransferProgress as TransferProgressT } from "../types";
 
 const PHASE_LABEL: Record<TransferProgressT["phase"], string> = {
   idle: "Idle",
-  preparing: "Querying maximumWriteValueLength…",
-  converting: "Converting to RGB565…",
-  uploading: "Uploading chunk…",
-  "ack-wait": "Waiting for status ack…",
+  preparing: "Preparing…",
+  converting: "Converting image…",
+  uploading: "Uploading…",
+  "ack-wait": "Waiting…",
   complete: "Transfer complete",
   error: "Transfer failed",
   cancelled: "Transfer cancelled",
@@ -54,7 +54,7 @@ export function TransferProgressBar({ transfer, onCancel }: { transfer: Transfer
       {transfer.error && (
         <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-950/60 p-2 text-[11px] text-red-300">
           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-          <span>{transfer.error} — will resume from the last acked chunk once reconnected.</span>
+          <span>{transfer.error} — it will resume once reconnected.</span>
         </div>
       )}
 

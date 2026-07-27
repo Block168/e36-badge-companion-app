@@ -1,4 +1,4 @@
-import { Bluetooth, BluetoothOff, RadioTower, Signal } from "lucide-react";
+import { Bluetooth, BluetoothOff, RadioTower } from "lucide-react";
 import type { BLEManagerApi } from "../hooks/useBLEManager";
 
 export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
@@ -9,11 +9,7 @@ export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
       <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
         <BluetoothOff className="h-12 w-12 text-zinc-500" />
         <h2 className="text-lg font-semibold text-white">Bluetooth is Off</h2>
-        <p className="text-sm text-zinc-400">
-          Turn on Bluetooth to scan for your badge. In the real app this state comes from
-          <code className="mx-1 rounded bg-zinc-800 px-1.5 py-0.5 text-xs">CBManagerState.poweredOff</code>
-          via <code className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs">centralManagerDidUpdateState</code>.
-        </p>
+        <p className="text-sm text-zinc-400">Turn on Bluetooth to find your badge.</p>
         <button
           onClick={toggleBluetoothPower}
           className="mt-2 rounded-full bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-500"
@@ -33,15 +29,7 @@ export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
         </div>
         <div>
           <h2 className="text-lg font-semibold text-white">{device.name}</h2>
-          <p className="mt-1 flex items-center justify-center gap-1 text-sm text-zinc-400">
-            <Signal className="h-3.5 w-3.5" /> {rssi} dBm · GATT ready
-          </p>
         </div>
-        <p className="max-w-xs text-xs text-zinc-500">
-          Peripheral UUID cached locally for auto-reconnect via
-          <code className="mx-1 rounded bg-zinc-800 px-1.5 py-0.5">retrievePeripherals(withIdentifiers:)</code>
-          on next launch.
-        </p>
         <button
           onClick={disconnect}
           className="rounded-full border border-zinc-700 px-5 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800"
@@ -70,17 +58,15 @@ export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10 ring-4 ring-blue-500/20">
           <Bluetooth className="h-7 w-7 text-blue-400" />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-white">Find Your Badge</h2>
-        <p className="mt-1 text-sm text-zinc-400">
-          Scans for peripherals advertising the badge's custom service UUID.
-        </p>
+      <h2 className="mt-4 text-lg font-semibold text-white">Find your badge</h2>
+      <p className="mt-1 text-sm text-zinc-400">Search nearby and connect when it appears.</p>
       </div>
 
       <div className="mt-6 flex-1 space-y-2 overflow-y-auto">
         {connectionState === "scanning" && discovered.length === 0 && (
           <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
-            <span className="text-sm text-zinc-400">Scanning nearby peripherals…</span>
+            <span className="text-sm text-zinc-400">Looking for your badge…</span>
           </div>
         )}
         {discovered.map((d) => (
@@ -93,14 +79,11 @@ export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
               <p className="text-sm font-medium text-white">{d.name}</p>
               <p className="text-xs text-zinc-500">{d.id.slice(0, 8)}…</p>
             </div>
-            <span className="flex items-center gap-1 text-xs text-zinc-400">
-              <Signal className="h-3.5 w-3.5" /> {d.rssi} dBm
-            </span>
           </button>
         ))}
         {connectionState === "idle" && discovered.length === 0 && (
           <div className="rounded-xl border border-dashed border-zinc-800 p-4 text-center text-xs text-zinc-500">
-            Tap scan to search for a nearby badge over BLE.
+            Tap search to look for a nearby badge.
           </div>
         )}
       </div>
@@ -110,7 +93,7 @@ export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
         disabled={connectionState === "scanning"}
         className="mt-4 w-full rounded-full bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
       >
-        {connectionState === "scanning" ? "Scanning…" : "Scan for Badge"}
+        {connectionState === "scanning" ? "Searching…" : "Search for Badge"}
       </button>
     </div>
   );

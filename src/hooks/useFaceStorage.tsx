@@ -11,10 +11,12 @@ export interface SavedFace {
 interface FaceStorageApi {
   savedFaces: SavedFace[];
   loaded: boolean;
+  storageError: string | null;
   saveFace: (name: string, dataUrl: string, category?: string) => SavedFace;
   deleteFace: (id: string) => void;
   updateFace: (id: string, updates: Partial<SavedFace>) => void;
   clearAllFaces: () => void;
+  clearStorageError: () => void;
 }
 
 const STORAGE_KEY = "faces_saved_faces";
@@ -24,6 +26,7 @@ const FaceStorageContext = createContext<FaceStorageApi | null>(null);
 export function FaceStorageProvider({ children }: { children: ReactNode }) {
   const [savedFaces, setSavedFaces] = useState<SavedFace[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -32,6 +35,7 @@ export function FaceStorageProvider({ children }: { children: ReactNode }) {
         setSavedFaces(JSON.parse(stored));
       }
     } catch (error) {
+      setStorageError("Failed to load saved faces from local storage.");
       console.error("Failed to load saved faces:", error);
     } finally {
       setLoaded(true);
@@ -39,10 +43,11 @@ export function FaceStorageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const persist = (faces: SavedFace[]) => {
-    setSavedFaces(faces);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(faces));
+      setStorageError(null);
     } catch (error) {
+      setStorageError("Failed to save faces to local storage.");
       console.error("Failed to persist faces:", error);
     }
   };
@@ -55,29 +60,39 @@ export function FaceStorageProvider({ children }: { children: ReactNode }) {
       createdAt: Date.now(),
       category,
     };
-    persist([...savedFaces, newFace]);
+    const next = [...savedFaces, newFace];
+    setSavedFaces(next);
+    persist(next);
     return newFace;
   };
 
   const deleteFace = (id: string) => {
-    persist(savedFaces.filter((f) => f.id !== id));
+    const next = savedFaces.filter((f) => f.id !== id);
+    setSavedFaces(next);
+    persist(next);
   };
 
   const updateFace = (id: string, updates: Partial<SavedFace>) => {
-    persist(savedFaces.map((f) => (f.id === id ? { ...f, ...updates } : f)));
+    const next = savedFaces.map((f) => (f.id === id ? { ...f, ...updates } : f));
+    setSavedFaces(next);
+    persist(next);
   };
 
   const clearAllFaces = () => {
     setSavedFaces([]);
     try {
       localStorage.removeItem(STORAGE_KEY);
+      setStorageError(null);
     } catch (error) {
+      setStorageError("Failed to clear saved faces from local storage.");
       console.error("Failed to clear faces:", error);
     }
   };
 
   return (
-    <FaceStorageContext.Provider value={{ savedFaces, loaded, saveFace, deleteFace, updateFace, clearAllFaces }}>
+    <FaceStorageContext.Provider
+      value={{ savedFaces, loaded, storageError, saveFace, deleteFace, updateFace, clearAllFaces, clearStorageError: () => setStorageError(null) }}
+    >
       {children}
     </FaceStorageContext.Provider>
   );

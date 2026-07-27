@@ -43,10 +43,8 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
 
   return (
     <div className="flex h-full flex-col px-5 py-6">
-      <h2 className="text-lg font-semibold text-white">Boot Animation</h2>
-      <p className="text-xs text-zinc-500">
-        Photo sequence or decoded GIF frames, capped at {MAX_BOOT_FRAMES} frames to fit flash budget.
-      </p>
+      <h2 className="text-lg font-semibold text-white">Startup animation</h2>
+      <p className="text-xs text-zinc-500">Add up to {MAX_BOOT_FRAMES} frames.</p>
 
       <div className="mt-4 flex flex-col items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
         <div className="relative h-40 w-40 overflow-hidden rounded-full ring-2 ring-blue-500/50">
@@ -104,7 +102,7 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
       <div className="mt-5 flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
         <div>
           <p className="text-sm font-medium text-white">Custom boot sequence</p>
-          <p className="text-[11px] text-zinc-500">Writes boot_anim_flag on the badge</p>
+          <p className="text-[11px] text-zinc-500">Starts when the badge powers on</p>
         </div>
         <button
           onClick={() => setBootAnim(!bootAnimEnabled)}
@@ -126,10 +124,10 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
           disabled={disabled || busy || bootFrames.length === 0}
           className="flex w-full items-center justify-center gap-2 rounded-full bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-40"
         >
-          <Upload className="h-4 w-4" /> Upload Sequence to Badge
+          <Upload className="h-4 w-4" /> Upload animation
         </button>
         {disabled && (
-          <p className="text-center text-[11px] text-amber-300">Connect to the badge to enable uploads.</p>
+          <p className="text-center text-[11px] text-amber-300">Connect to enable uploads.</p>
         )}
       </div>
     </div>

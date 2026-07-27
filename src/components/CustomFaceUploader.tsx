@@ -64,9 +64,10 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
 
   const exportAsPNG = () => {
     if (!preview) return;
+    const url = preview;
     const link = document.createElement("a");
     link.download = `${name || "face"}.png`;
-    link.href = preview;
+    link.href = url;
     link.click();
   };
 
@@ -74,17 +75,18 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
     if (!preview) return;
     const buffer = await convertToRGB565(preview, 480);
     const blob = new Blob([buffer], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.download = `${name || "face"}.rgb565`;
-    link.href = URL.createObjectURL(blob);
+    link.href = url;
     link.click();
-    URL.revokeObjectURL(link.href);
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-zinc-950">
       <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
-        <h2 className="text-sm font-semibold text-white">New Custom Face</h2>
+        <h2 className="text-sm font-semibold text-white">New design</h2>
         <button onClick={onClose} className="rounded-full p-1.5 hover:bg-zinc-800">
           <X className="h-4 w-4 text-zinc-400" />
         </button>
@@ -97,8 +99,8 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
             className="flex h-56 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-zinc-800 text-zinc-500 hover:border-zinc-700"
           >
             <ImagePlus className="h-8 w-8" />
-            <span className="text-sm">Choose a photo (PhotosPicker)</span>
-            <span className="text-[11px] text-zinc-600">JPEG/PNG · will be cropped to a circle</span>
+            <span className="text-sm">Choose a photo</span>
+            <span className="text-[11px] text-zinc-600">JPEG/PNG · cropped to fit the badge</span>
           </button>
         )}
         <input ref={fileInput} type="file" accept="image/*" className="hidden" onChange={onPick} />
@@ -218,7 +220,7 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
               Confirm Crop
             </button>
             <button onClick={() => setRawImage(null)} className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300">
-              Choose a different photo
+              Choose another photo
             </button>
           </div>
         )}
@@ -230,7 +232,7 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
                 <img src={preview} className="h-full w-full object-cover" alt="Cropped preview" />
               </div>
               <p className="text-[11px] text-zinc-500">
-                Output fixed at 480×480 · {(RGB565_IMAGE_BYTES / 1024).toFixed(0)}KB as RGB565
+                Ready for upload · {(RGB565_IMAGE_BYTES / 1024).toFixed(0)}KB
               </p>
             </div>
 
@@ -252,7 +254,7 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
                 onClick={exportAsRGB565}
                 className="flex-1 rounded-lg border border-zinc-700 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-800"
               >
-                <Download className="inline h-3 w-3 mr-1" /> Export RGB565
+                <Download className="inline h-3 w-3 mr-1" /> Export file
               </button>
             </div>
 
@@ -270,7 +272,7 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
                   onClick={doSave}
                   className="flex-1 rounded-full border border-emerald-600 py-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-950/30"
                 >
-                  <Save className="inline h-3.5 w-3.5 mr-1" /> Save
+                  <Save className="inline h-3.5 w-3.5 mr-1" /> Save design
                 </button>
                 <button onClick={onClose} className="flex-1 rounded-full bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500">
                   Done
@@ -290,7 +292,7 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
                   disabled={busy || connectionState !== "ready"}
                   className="flex-1 rounded-full bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
                 >
-                  {busy ? "Uploading…" : "Send to Badge"}
+                  {busy ? "Uploading…" : "Send now"}
                 </button>
               </div>
             )}
