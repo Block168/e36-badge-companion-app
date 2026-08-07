@@ -16,7 +16,7 @@ import {
 } from '../types'
 import { useTransferHistory } from './useTransferHistory'
 import { useFaceStorage } from './useFaceStorage'
-import { convertToRGB565, loadImage } from '../utils/cropImage'
+import { convertToRGB565 } from '../utils/cropImage'
 
 const LAST_DEVICE_KEY = 'e36-badge.lastDeviceId'
 
@@ -248,11 +248,11 @@ export function useBLEManager() {
       try {
         const brightnessChar = characteristicsRef.current.get(CHAR_BRIGHTNESS)
         if (brightnessChar) {
-          const value = await brightnessChar.readValue()
-          const brightnessLevel = value.getUint8(0)
-          setBrightnessState(Math.round((brightnessLevel / 255) * 100))
-          pushLog('read', `Brightness characteristic read -> ${brightnessLevel}`)
-        }
+            const value = await brightnessChar.readValue()
+            const brightnessLevel = value.getUint8(0)
+            setBrightnessState(Math.round((brightnessLevel / 255) * 100))
+            pushLog('read', `Brightness characteristic read -> ${brightnessLevel}`)
+          }
       } catch (readError) {
         pushLog('warn', `Could not read initial brightness: ${readError}`)
       }
@@ -431,6 +431,9 @@ export function useBLEManager() {
         `Starting image transfer: ${totalBytes} bytes, ${totalChunks} chunks`
       )
 
+      // SET the transfer start time here
+      transferStartTime.current = Date.now()
+
       setTransfer({
         phase: 'preparing',
         chunkIndex: 0,
@@ -504,7 +507,11 @@ export function useBLEManager() {
 
       pushLog('xfer', `Transfer complete: ${totalBytes} bytes sent in ${duration}ms`)
 
-      return { totalBytes, duration }
+      // Clear the transfer start time after use
+      const finalDuration = duration
+      transferStartTime.current = null
+
+      return { totalBytes, finalDuration }
     },
     [connectionState, isWebBluetoothAvailable, setTransfer, pushLog]
   )
@@ -523,8 +530,6 @@ export function useBLEManager() {
 
       try {
         pushLog('xfer', `Starting custom face upload: ${name}`)
-
-        transferStartTime.current = Date.now()
 
         const { totalBytes, duration } = await transferImageData(
           dataUrl,
@@ -571,20 +576,15 @@ export function useBLEManager() {
         let i = 0
         const totalFrames = frames.length
 
-        const processNextFrame = async () => {
-          if (i >= totalFrames) {
-            // All frames uploaded, enable boot animation
-            await setBootAnim(true)
-            pushLog('xfer', `All ${totalFrames} boot frames uploaded, boot_anim_flag enabled`)
-            return
-          }
-
+        // Use iterative approach instead of recursion to avoid potential stack issues
+        while (i < totalFrames) {
           const frame = frames[i]
           const frameIndex = i
 
           try {
             pushLog('xfer', `Uploading frame ${frameIndex + 1}/${totalFrames}`)
 
+            // SET the transfer start time for this frame
             transferStartTime.current = Date.now()
 
             await transferImageData(
@@ -603,17 +603,17 @@ export function useBLEManager() {
             // })
 
             i++
-            await processNextFrame()
           } catch (error) {
             pushLog('xfer', `Error uploading frame ${frameIndex + 1}: ${error}`)
             // Depending on requirements, we might want to continue or abort
             // For now, let's continue with next frame
             i++
-            await processNextFrame()
           }
         }
 
-        await processNextFrame()
+        // All frames uploaded, enable boot animation
+        await setBootAnim(true)
+        pushLog('xfer', `All ${totalFrames} boot frames uploaded, boot_anim_flag enabled`)
       } catch (error) {
         pushLog('xfer', `ERROR in boot animation upload: ${error}`)
         setTransfer(t => ({ ...t, phase: 'error', error: String(error) }))
@@ -626,10 +626,9 @@ export function useBLEManager() {
     // In real implementation, we might need to send a cancel command
     // For now, just reset state
     try {
+      // Clear the transfer start time if set
       if (transferStartTime.current !== null) {
-        // Note: We don't have a direct way to cancel an ongoing write in Web Bluetooth
-        // The best we can do is disconnect or ignore further writes
-        // For simplicity, we'll just reset our state
+        transferStartTime.current = null
       }
     } catch (e) {/* ignore */}
 
