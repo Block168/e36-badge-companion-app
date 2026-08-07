@@ -136,6 +136,36 @@ export function useBLEManager() {
   }, [])
 
   // Auto-reconnect: try last known device id before falling back to fresh scan.
+  const attemptAutoReconnect = useCallback(async () => {
+    if (isDisconnectingRef.current) return
+
+    isDisconnectingRef.current = true
+    try {
+      const lastId = localStorage.getItem(LAST_DEVICE_KEY)
+      if (lastId) {
+        pushLog('system', `Found cached peripheral UUID ${lastId.slice(0, 8)}… attempting to retrieve`)
+        setConnectionState('connecting')
+
+        try {
+          // Try to get the device by ID
+          const device = await navigator.bluetooth.getDevice({ id: lastId })
+          if (device && !device.gatt.connected) {
+            bluetoothDeviceRef.current = device
+            await connectToDevice(device)
+            return
+          }
+        } catch (error) {
+          pushLog('system', `Could not retrieve last device: ${error}`)
+        }
+      }
+
+      // If we get here, auto-reconnect failed or no last device
+      setConnectionState('idle')
+    } finally {
+      isDisconnectingRef.current = false
+    }
+  }, [])
+
   useEffect(() => {
     if (!isWebBluetoothAvailable()) {
       pushLog('system', 'Web Bluetooth not available in this browser')
@@ -143,38 +173,8 @@ export function useBLEManager() {
       return
     }
 
-    const attemptAutoReconnect = useCallback(async () => {
-      if (isDisconnectingRef.current) return
-
-      isDisconnectingRef.current = true
-      try {
-        const lastId = localStorage.getItem(LAST_DEVICE_KEY)
-        if (lastId) {
-          pushLog('system', `Found cached peripheral UUID ${lastId.slice(0, 8)}… attempting to retrieve`)
-          setConnectionState('connecting')
-
-          try {
-            // Try to get the device by ID
-            const device = await navigator.bluetooth.getDevice({ id: lastId })
-            if (device && !device.gatt.connected) {
-              bluetoothDeviceRef.current = device
-              await connectToDevice(device)
-              return
-            }
-          } catch (error) {
-            pushLog('system', `Could not retrieve last device: ${error}`)
-          }
-        }
-
-        // If we get here, auto-reconnect failed or no last device
-        setConnectionState('idle')
-      } finally {
-        isDisconnectingRef.current = false
-      }
-    }, [])
-
     attemptAutoReconnect()
-  }, [])
+  }, [attemptAutoReconnect])
 
   const finishConnect = useCallback(() => {
     setConnectionState('ready')
