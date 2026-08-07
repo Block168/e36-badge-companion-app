@@ -233,6 +233,7 @@ export function useBLEManager() {
       gattServerRef.current = server
 
       pushLog('gatt', 'GATT connected, getting primary service...')
+      setConnectionState('discoveringServices')
 
       const service = await server.getPrimaryService(SERVICE_UUID)
       serviceRef.current = service

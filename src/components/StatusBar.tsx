@@ -12,6 +12,7 @@ const STATE_META: Record<ConnectionState, { label: string; tone: string }> = {
   discoveringServices: { label: 'Discovering…', tone: 'text-amber-300 bg-amber-950' },
   ready: { label: 'Connected', tone: 'text-emerald-300 bg-emerald-950' },
   disconnected: { label: 'Disconnected', tone: 'text-red-300 bg-red-950' },
+  error: { label: 'Error', tone: 'text-red-300 bg-red-950' },
 }
 
 interface StatusPillProps {
