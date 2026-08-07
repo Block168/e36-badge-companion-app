@@ -1,8 +1,17 @@
-import { Bluetooth, BluetoothOff, RadioTower } from "lucide-react";
-import type { BLEManagerApi } from "../hooks/useBLEManager";
+import { Bluetooth, BluetoothOff, RadioTower } from 'lucide-react'
+import type { BLEManagerApi } from '../hooks/useBLEManager'
 
 export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
-  const { connectionState, bluetoothPowered, toggleBluetoothPower, discovered, startScan, connect, device, rssi, disconnect } = ble;
+  const {
+    connectionState,
+    bluetoothPowered,
+    toggleBluetoothPower,
+    discovered,
+    startScan,
+    connect,
+    device,
+    disconnect,
+  } = ble
 
   if (!bluetoothPowered) {
     return (
@@ -17,10 +26,10 @@ export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
           Turn Bluetooth On
         </button>
       </div>
-    );
+    )
   }
 
-  if (connectionState === "ready" && device) {
+  if (connectionState === 'ready' && device) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-5 px-8 text-center">
         <div className="relative flex h-28 w-28 items-center justify-center rounded-full bg-emerald-500/10 ring-4 ring-emerald-500/20">
@@ -37,19 +46,19 @@ export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
           Disconnect
         </button>
       </div>
-    );
+    )
   }
 
-  if (connectionState === "connecting" || connectionState === "discoveringServices") {
+  if (connectionState === 'connecting' || connectionState === 'discoveringServices') {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
         <div className="h-12 w-12 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
         <h2 className="text-lg font-semibold text-white">
-          {connectionState === "connecting" ? "Connecting…" : "Discovering services…"}
+          {connectionState === 'connecting' ? 'Connecting…' : 'Discovering services…'}
         </h2>
-        <p className="text-sm text-zinc-400">{device?.name ?? "E36-Badge"}</p>
+        <p className="text-sm text-zinc-400">{device?.name ?? 'E36-Badge'}</p>
       </div>
-    );
+    )
   }
 
   return (
@@ -58,18 +67,18 @@ export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10 ring-4 ring-blue-500/20">
           <Bluetooth className="h-7 w-7 text-blue-400" />
         </div>
-      <h2 className="mt-4 text-lg font-semibold text-white">Find your badge</h2>
-      <p className="mt-1 text-sm text-zinc-400">Search nearby and connect when it appears.</p>
+        <h2 className="mt-4 text-lg font-semibold text-white">Find your badge</h2>
+        <p className="mt-1 text-sm text-zinc-400">Search nearby and connect when it appears.</p>
       </div>
 
       <div className="mt-6 flex-1 space-y-2 overflow-y-auto">
-        {connectionState === "scanning" && discovered.length === 0 && (
+        {connectionState === 'scanning' && discovered.length === 0 && (
           <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
             <span className="text-sm text-zinc-400">Looking for your badge…</span>
           </div>
         )}
-        {discovered.map((d) => (
+        {discovered.map(d => (
           <button
             key={d.id}
             onClick={() => connect(d)}
@@ -81,7 +90,7 @@ export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
             </div>
           </button>
         ))}
-        {connectionState === "idle" && discovered.length === 0 && (
+        {connectionState === 'idle' && discovered.length === 0 && (
           <div className="rounded-xl border border-dashed border-zinc-800 p-4 text-center text-xs text-zinc-500">
             Tap search to look for a nearby badge.
           </div>
@@ -90,11 +99,11 @@ export function ConnectScreen({ ble }: { ble: BLEManagerApi }) {
 
       <button
         onClick={startScan}
-        disabled={connectionState === "scanning"}
+        disabled={connectionState === 'scanning'}
         className="mt-4 w-full rounded-full bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
       >
-        {connectionState === "scanning" ? "Searching…" : "Search for Badge"}
+        {connectionState === 'scanning' ? 'Searching…' : 'Search for Badge'}
       </button>
     </div>
-  );
+  )
 }

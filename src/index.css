@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
   --color-dark-bg: radial-gradient(ellipse_at_top, #1e293b 0%, #020617 60%);

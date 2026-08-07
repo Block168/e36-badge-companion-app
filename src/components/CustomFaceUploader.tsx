@@ -1,87 +1,99 @@
-import { useCallback, useRef, useState } from "react";
-import Cropper, { type Area } from "react-easy-crop";
-import { ImagePlus, X, ZoomIn, Sliders, RotateCw, Save, Download } from "lucide-react";
-import type { BLEManagerApi } from "../hooks/useBLEManager";
-import { useFaceStorage } from "../hooks/useFaceStorage";
-import { getCroppedCircleDataUrl, convertToRGB565 } from "../utils/cropImage";
-import { TransferProgressBar } from "./TransferProgress";
-import { RGB565_IMAGE_BYTES } from "../types";
+import { useCallback, useRef, useState } from 'react'
+import Cropper, { type Area } from 'react-easy-crop'
+import { ImagePlus, X, ZoomIn, Sliders, RotateCw, Save, Download } from 'lucide-react'
+import type { BLEManagerApi } from '../hooks/useBLEManager'
+import { useFaceStorage } from '../hooks/useFaceStorage'
+import { getCroppedCircleDataUrl, convertToRGB565 } from '../utils/cropImage'
+import { TransferProgressBar } from './TransferProgress'
+import { RGB565_IMAGE_BYTES } from '../types'
 
 export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClose: () => void }) {
-  const { saveFace } = useFaceStorage();
-  const [rawImage, setRawImage] = useState<string | null>(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [name, setName] = useState("Custom Face");
-  const [brightness, setBrightness] = useState(100);
-  const [contrast, setContrast] = useState(100);
-  const [saturation, setSaturation] = useState(100);
-  const [rotation, setRotation] = useState(0);
-  const [showFilters, setShowFilters] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const { saveFace } = useFaceStorage()
+  const [rawImage, setRawImage] = useState<string | null>(null)
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [name, setName] = useState('Custom Face')
+  const [brightness, setBrightness] = useState(100)
+  const [contrast, setContrast] = useState(100)
+  const [saturation, setSaturation] = useState(100)
+  const [rotation, setRotation] = useState(0)
+  const [showFilters, setShowFilters] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
 
-  const { transfer, uploadCustomFace, cancelTransfer, connectionState } = ble;
-  const busy = transfer.phase !== "idle" && transfer.phase !== "complete" && transfer.phase !== "error" && transfer.phase !== "cancelled";
+  const { transfer, uploadCustomFace, cancelTransfer, connectionState } = ble
+  const busy =
+    transfer.phase !== 'idle' &&
+    transfer.phase !== 'complete' &&
+    transfer.phase !== 'error' &&
+    transfer.phase !== 'cancelled'
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
     reader.onload = () => {
-      setRawImage(reader.result as string);
-      setPreview(null);
-      setCrop({ x: 0, y: 0 });
-      setZoom(1);
-      setBrightness(100);
-      setContrast(100);
-      setSaturation(100);
-      setRotation(0);
-    };
-    reader.readAsDataURL(file);
-  };
+      setRawImage(reader.result as string)
+      setPreview(null)
+      setCrop({ x: 0, y: 0 })
+      setZoom(1)
+      setBrightness(100)
+      setContrast(100)
+      setSaturation(100)
+      setRotation(0)
+    }
+    reader.readAsDataURL(file)
+  }
 
   const onCropComplete = useCallback((_area: Area, areaPixels: Area) => {
-    setCroppedAreaPixels(areaPixels);
-  }, []);
+    setCroppedAreaPixels(areaPixels)
+  }, [])
 
   const confirmCrop = async () => {
-    if (!rawImage || !croppedAreaPixels) return;
-    const dataUrl = await getCroppedCircleDataUrl(rawImage, croppedAreaPixels, 480, brightness, contrast, saturation, rotation);
-    setPreview(dataUrl);
-  };
+    if (!rawImage || !croppedAreaPixels) return
+    const dataUrl = await getCroppedCircleDataUrl(
+      rawImage,
+      croppedAreaPixels,
+      480,
+      brightness,
+      contrast,
+      saturation,
+      rotation
+    )
+    setPreview(dataUrl)
+  }
 
   const doUpload = () => {
-    if (!preview) return;
-    uploadCustomFace(name || "Custom Face", preview);
-  };
+    if (!preview) return
+    uploadCustomFace(name || 'Custom Face', preview)
+  }
 
   const doSave = () => {
-    if (!preview) return;
-    saveFace(name || "Custom Face", preview);
-  };
+    if (!preview) return
+    saveFace(name || 'Custom Face', preview)
+  }
 
   const exportAsPNG = () => {
-    if (!preview) return;
-    const url = preview;
-    const link = document.createElement("a");
-    link.download = `${name || "face"}.png`;
-    link.href = url;
-    link.click();
-  };
+    if (!preview) return
+    const url = preview
+    const link = document.createElement('a')
+    link.download = `${name || 'face'}.png`
+    link.href = url
+    link.click()
+  }
 
   const exportAsRGB565 = async () => {
-    if (!preview) return;
-    const buffer = await convertToRGB565(preview, 480);
-    const blob = new Blob([buffer], { type: "application/octet-stream" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.download = `${name || "face"}.rgb565`;
-    link.href = url;
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
-  };
+    if (!preview) return
+    const buffer = await convertToRGB565(preview, 480)
+    const blob = new Blob([buffer], { type: 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.download = `${name || 'face'}.rgb565`
+    link.href = url
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-zinc-950">
@@ -129,17 +141,17 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
                 max={3}
                 step={0.01}
                 value={zoom}
-                onChange={(e) => setZoom(Number(e.target.value))}
+                onChange={e => setZoom(Number(e.target.value))}
                 className="w-full accent-blue-500"
               />
             </div>
-            
+
             <button
               onClick={() => setShowFilters(!showFilters)}
               className="flex items-center gap-2 rounded-lg border border-zinc-800 px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-800"
             >
               <Sliders className="h-3.5 w-3.5" />
-              {showFilters ? "Hide Filters" : "Show Filters"}
+              {showFilters ? 'Hide Filters' : 'Show Filters'}
             </button>
 
             {showFilters && (
@@ -155,7 +167,7 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
                     max={200}
                     step={1}
                     value={brightness}
-                    onChange={(e) => setBrightness(Number(e.target.value))}
+                    onChange={e => setBrightness(Number(e.target.value))}
                     className="w-full accent-blue-500"
                   />
                 </div>
@@ -170,7 +182,7 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
                     max={200}
                     step={1}
                     value={contrast}
-                    onChange={(e) => setContrast(Number(e.target.value))}
+                    onChange={e => setContrast(Number(e.target.value))}
                     className="w-full accent-blue-500"
                   />
                 </div>
@@ -185,14 +197,14 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
                     max={200}
                     step={1}
                     value={saturation}
-                    onChange={(e) => setSaturation(Number(e.target.value))}
+                    onChange={e => setSaturation(Number(e.target.value))}
                     className="w-full accent-blue-500"
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-zinc-400">Rotation</span>
                   <button
-                    onClick={() => setRotation((prev) => (prev + 90) % 360)}
+                    onClick={() => setRotation(prev => (prev + 90) % 360)}
                     className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
                   >
                     <RotateCw className="h-3 w-3" />
@@ -201,10 +213,10 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
                 </div>
                 <button
                   onClick={() => {
-                    setBrightness(100);
-                    setContrast(100);
-                    setSaturation(100);
-                    setRotation(0);
+                    setBrightness(100)
+                    setContrast(100)
+                    setSaturation(100)
+                    setRotation(0)
                   }}
                   className="w-full rounded-lg border border-zinc-700 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800"
                 >
@@ -219,7 +231,10 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
             >
               Confirm Crop
             </button>
-            <button onClick={() => setRawImage(null)} className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300">
+            <button
+              onClick={() => setRawImage(null)}
+              className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300"
+            >
               Choose another photo
             </button>
           </div>
@@ -238,7 +253,7 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
 
             <input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={e => setName(e.target.value)}
               placeholder="Face name"
               className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
             />
@@ -258,7 +273,7 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
               </button>
             </div>
 
-            {connectionState !== "ready" && (
+            {connectionState !== 'ready' && (
               <p className="rounded-lg bg-amber-950/60 px-3 py-2 text-[11px] text-amber-300">
                 Not connected — connect to the badge before uploading.
               </p>
@@ -266,7 +281,7 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
 
             <TransferProgressBar transfer={transfer} onCancel={cancelTransfer} />
 
-            {transfer.phase === "complete" ? (
+            {transfer.phase === 'complete' ? (
               <div className="flex gap-2">
                 <button
                   onClick={doSave}
@@ -274,7 +289,10 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
                 >
                   <Save className="inline h-3.5 w-3.5 mr-1" /> Save design
                 </button>
-                <button onClick={onClose} className="flex-1 rounded-full bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500">
+                <button
+                  onClick={onClose}
+                  className="flex-1 rounded-full bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500"
+                >
                   Done
                 </button>
               </div>
@@ -289,10 +307,10 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
                 </button>
                 <button
                   onClick={doUpload}
-                  disabled={busy || connectionState !== "ready"}
+                  disabled={busy || connectionState !== 'ready'}
                   className="flex-1 rounded-full bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
                 >
-                  {busy ? "Uploading…" : "Send now"}
+                  {busy ? 'Uploading…' : 'Send now'}
                 </button>
               </div>
             )}
@@ -300,5 +318,5 @@ export function CustomFaceUploader({ ble, onClose }: { ble: BLEManagerApi; onClo
         )}
       </div>
     </div>
-  );
+  )
 }

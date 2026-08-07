@@ -1,55 +1,68 @@
-import { useRef, useState, useEffect } from "react";
-import { Film, PlayCircle, Trash2, Upload, X, Sparkles } from "lucide-react";
-import type { BLEManagerApi } from "../hooks/useBLEManager";
-import { useFaceStorage } from "../hooks/useFaceStorage";
-import { TransferProgressBar } from "./TransferProgress";
-import { MAX_BOOT_FRAMES } from "../types";
+import { useRef, useState, useEffect } from 'react'
+import { Film, PlayCircle, Trash2, Upload, X, Sparkles } from 'lucide-react'
+import type { BLEManagerApi } from '../hooks/useBLEManager'
+import { useFaceStorage } from '../hooks/useFaceStorage'
+import { TransferProgressBar } from './TransferProgress'
+import { MAX_BOOT_FRAMES } from '../types'
 
 export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
-  const { bootFrames, addBootFrames, clearBootFrames, bootAnimEnabled, setBootAnim, uploadBootAnimation, transfer, cancelTransfer, connectionState } =
-    ble;
-  const { savedFaces } = useFaceStorage();
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [previewIdx, setPreviewIdx] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [loopSpeed, setLoopSpeed] = useState(1000);
-  const [galleryPickerOpen, setGalleryPickerOpen] = useState(false);
-  const disabled = connectionState !== "ready";
-  const busy = transfer.phase !== "idle" && transfer.phase !== "complete" && transfer.phase !== "error" && transfer.phase !== "cancelled";
+  const {
+    bootFrames,
+    addBootFrames,
+    clearBootFrames,
+    bootAnimEnabled,
+    setBootAnim,
+    uploadBootAnimation,
+    transfer,
+    cancelTransfer,
+    connectionState,
+  } = ble
+  const { savedFaces } = useFaceStorage()
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [previewIdx, setPreviewIdx] = useState(0)
+  const [playing, setPlaying] = useState(false)
+  const [loopSpeed, setLoopSpeed] = useState(1000)
+  const [galleryPickerOpen, setGalleryPickerOpen] = useState(false)
+  const disabled = connectionState !== 'ready'
+  const busy =
+    transfer.phase !== 'idle' &&
+    transfer.phase !== 'complete' &&
+    transfer.phase !== 'error' &&
+    transfer.phase !== 'cancelled'
 
   useEffect(() => {
-    if (!playing || bootFrames.length === 0) return;
+    if (!playing || bootFrames.length === 0) return
     const t = window.setInterval(() => {
-      setPreviewIdx((i) => (i + 1) % bootFrames.length);
-    }, loopSpeed);
-    return () => window.clearInterval(t);
-  }, [playing, bootFrames.length, loopSpeed]);
+      setPreviewIdx(i => (i + 1) % bootFrames.length)
+    }, loopSpeed)
+    return () => window.clearInterval(t)
+  }, [playing, bootFrames.length, loopSpeed])
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
-    const room = MAX_BOOT_FRAMES - bootFrames.length;
-    const toRead = files.slice(0, Math.max(0, room));
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
+    const room = MAX_BOOT_FRAMES - bootFrames.length
+    const toRead = files.slice(0, Math.max(0, room))
     Promise.all(
       toRead.map(
-        (file) =>
-          new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
+        file =>
+          new Promise<string>(resolve => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as string)
+            reader.readAsDataURL(file)
           })
       )
-    ).then((dataUrls) => {
-      addBootFrames(dataUrls.map((dataUrl) => ({ id: crypto.randomUUID(), dataUrl })));
-    });
-    if (e.target) e.target.value = "";
-  };
+    ).then(dataUrls => {
+      addBootFrames(dataUrls.map(dataUrl => ({ id: crypto.randomUUID(), dataUrl })))
+    })
+    if (e.target) e.target.value = ''
+  }
 
   const addFromGallery = (dataUrl: string) => {
-    if (bootFrames.length >= MAX_BOOT_FRAMES) return;
-    addBootFrames([{ id: crypto.randomUUID(), dataUrl }]);
-    setGalleryPickerOpen(false);
-  };
+    if (bootFrames.length >= MAX_BOOT_FRAMES) return
+    addBootFrames([{ id: crypto.randomUUID(), dataUrl }])
+    setGalleryPickerOpen(false)
+  }
 
   return (
     <div className="flex h-full flex-col px-5 py-6">
@@ -59,17 +72,23 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
       <div className="mt-4 flex flex-col items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
         <div className="relative h-40 w-40 overflow-hidden rounded-full ring-2 ring-blue-500/50">
           {bootFrames.length > 0 ? (
-            <img src={bootFrames[previewIdx]?.dataUrl} className="h-full w-full object-cover" alt="frame preview" />
+            <img
+              src={bootFrames[previewIdx]?.dataUrl}
+              className="h-full w-full object-cover"
+              alt="frame preview"
+            />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-[11px] text-zinc-600">no frames yet</div>
+            <div className="flex h-full w-full items-center justify-center text-[11px] text-zinc-600">
+              no frames yet
+            </div>
           )}
         </div>
         <button
-          onClick={() => setPlaying((p) => !p)}
+          onClick={() => setPlaying(p => !p)}
           disabled={bootFrames.length < 2}
           className="mt-1 flex items-center gap-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 disabled:opacity-40"
         >
-          <PlayCircle className="h-4 w-4" /> {playing ? "Pause preview loop" : "Preview loop"}
+          <PlayCircle className="h-4 w-4" /> {playing ? 'Pause preview loop' : 'Preview loop'}
         </button>
         <p className="text-[11px] text-zinc-500">
           {bootFrames.length}/{MAX_BOOT_FRAMES} frames
@@ -99,7 +118,14 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-      <input ref={fileInput} type="file" accept="image/*,.gif" multiple className="hidden" onChange={onPick} />
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/*,.gif"
+        multiple
+        className="hidden"
+        onChange={onPick}
+      />
 
       {bootFrames.length > 0 && (
         <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
@@ -109,7 +135,7 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
               src={f.dataUrl}
               onClick={() => setPreviewIdx(i)}
               className={`h-9 w-9 shrink-0 cursor-pointer rounded-full object-cover ring-2 ${
-                previewIdx === i ? "ring-blue-500" : "ring-transparent"
+                previewIdx === i ? 'ring-blue-500' : 'ring-transparent'
               }`}
             />
           ))}
@@ -126,11 +152,11 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
             <button
               onClick={() => setBootAnim(!bootAnimEnabled)}
               disabled={disabled}
-              className={`h-6 w-11 rounded-full transition ${bootAnimEnabled ? "bg-blue-600" : "bg-zinc-700"} disabled:opacity-40`}
+              className={`h-6 w-11 rounded-full transition ${bootAnimEnabled ? 'bg-blue-600' : 'bg-zinc-700'} disabled:opacity-40`}
             >
               <span
                 className={`block h-5 w-5 translate-y-0.5 rounded-full bg-white transition ${
-                  bootAnimEnabled ? "translate-x-5" : "translate-x-0.5"
+                  bootAnimEnabled ? 'translate-x-5' : 'translate-x-0.5'
                 }`}
               />
             </button>
@@ -139,7 +165,7 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-[11px] text-zinc-400">
               <span>Loop speed</span>
-              <span>{loopSpeed >= 60000 ? "1 min" : `${Math.round(loopSpeed / 1000)}s`}</span>
+              <span>{loopSpeed >= 60000 ? '1 min' : `${Math.round(loopSpeed / 1000)}s`}</span>
             </div>
             <input
               type="range"
@@ -148,7 +174,7 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
               step={1000}
               value={loopSpeed}
               disabled={disabled || bootFrames.length < 2}
-              onChange={(e) => setLoopSpeed(Number(e.target.value))}
+              onChange={e => setLoopSpeed(Number(e.target.value))}
               className="w-full accent-blue-500 disabled:opacity-40"
             />
             <p className="text-[11px] text-zinc-500">Lower values play faster. Up to 1 minute.</p>
@@ -175,9 +201,14 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
             <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
               <div>
                 <p className="text-sm font-semibold text-white">Choose from Gallery</p>
-                <p className="text-[11px] text-zinc-500">Pick a saved face to use in your startup animation.</p>
+                <p className="text-[11px] text-zinc-500">
+                  Pick a saved face to use in your startup animation.
+                </p>
               </div>
-              <button onClick={() => setGalleryPickerOpen(false)} className="rounded-full p-1.5 hover:bg-zinc-800">
+              <button
+                onClick={() => setGalleryPickerOpen(false)}
+                className="rounded-full p-1.5 hover:bg-zinc-800"
+              >
                 <X className="h-4 w-4 text-zinc-400" />
               </button>
             </div>
@@ -188,16 +219,22 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-3">
-                  {savedFaces.map((face) => (
+                  {savedFaces.map(face => (
                     <button
                       key={face.id}
                       onClick={() => addFromGallery(face.dataUrl)}
                       className="flex flex-col items-center gap-1.5"
                     >
                       <div className="h-16 w-16 overflow-hidden rounded-full ring-2 ring-transparent transition hover:ring-blue-500">
-                        <img src={face.dataUrl} className="h-full w-full object-cover" alt={face.name} />
+                        <img
+                          src={face.dataUrl}
+                          className="h-full w-full object-cover"
+                          alt={face.name}
+                        />
                       </div>
-                      <span className="max-w-[72px] truncate text-[10px] text-zinc-400">{face.name}</span>
+                      <span className="max-w-[72px] truncate text-[10px] text-zinc-400">
+                        {face.name}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -207,5 +244,5 @@ export function BootAnimationEditor({ ble }: { ble: BLEManagerApi }) {
         </div>
       )}
     </div>
-  );
+  )
 }

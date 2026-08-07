@@ -3,8 +3,8 @@
 
 export const SWIFT_SNIPPETS: { title: string; file: string; code: string }[] = [
   {
-    title: "Connection State Machine",
-    file: "ios-app/BadgeCompanion/BLE/BadgeBLEManager.swift",
+    title: 'Connection State Machine',
+    file: 'ios-app/BadgeCompanion/BLE/BadgeBLEManager.swift',
     code: `enum ConnectionState: Equatable {
     case poweredOff, unauthorized, idle
     case scanning, connecting, discoveringServices
@@ -42,8 +42,8 @@ final class BadgeBLEManager: NSObject, ObservableObject, BLEManaging {
 }`,
   },
   {
-    title: "Chunked Image Transfer (ACK-based)",
-    file: "ios-app/BadgeCompanion/BLE/BadgeBLEManager.swift",
+    title: 'Chunked Image Transfer (ACK-based)',
+    file: 'ios-app/BadgeCompanion/BLE/BadgeBLEManager.swift',
     code: `func sendImage(_ buffer: [UInt8], frameIndex: UInt8, totalFrames: Int) {
     guard let peripheral, let imageChar = characteristics[.imageData] else { return }
     let mtu = peripheral.maximumWriteValueLength(for: .withoutResponse)
@@ -74,8 +74,8 @@ private func sendNextChunk() {
 }`,
   },
   {
-    title: "Debounced Brightness (Combine)",
-    file: "ios-app/BadgeCompanion/BLE/BadgeBLEManager.swift",
+    title: 'Debounced Brightness (Combine)',
+    file: 'ios-app/BadgeCompanion/BLE/BadgeBLEManager.swift',
     code: `private let brightnessSubject = PassthroughSubject<UInt8, Never>()
 private var cancellables = Set<AnyCancellable>()
 
@@ -97,8 +97,8 @@ func setBrightness(percent: Double) {
 }`,
   },
   {
-    title: "UIImage → RGB565",
-    file: "ios-app/BadgeCompanion/Extensions/UIImage+RGB565.swift",
+    title: 'UIImage → RGB565',
+    file: 'ios-app/BadgeCompanion/Extensions/UIImage+RGB565.swift',
     code: `extension UIImage {
     /// Renders the image into a 480x480 RGB565 little-endian buffer for the ESP32 framebuffer.
     func rgb565Bytes(size: Int = 480) -> [UInt8]? {
@@ -123,4 +123,4 @@ func setBrightness(percent: Double) {
     }
 }`,
   },
-];
+]

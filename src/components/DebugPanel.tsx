@@ -1,22 +1,28 @@
-import { Terminal, Trash2, Clock } from "lucide-react";
-import type { BLEManagerApi } from "../hooks/useBLEManager";
-import { useTransferHistory } from "../hooks/useTransferHistory";
+import { Terminal, Trash2, Clock } from 'lucide-react'
+import type { BLEManagerApi } from '../hooks/useBLEManager'
+import { useTransferHistory } from '../hooks/useTransferHistory'
 
 const GATT_ROWS = [
-  { name: "face_select", prop: "Write", desc: "Preset/custom face index (1 byte)" },
-  { name: "image_data", prop: "Write, chunked", desc: "frame idx(1B)+total chunks(2B)+chunk idx(2B)+payload" },
-  { name: "brightness", prop: "Read/Write", desc: "0–255, debounced writes" },
-  { name: "boot_anim_flag", prop: "Write", desc: "Enable/disable custom boot sequence" },
-  { name: "status", prop: "Notify", desc: "Transfer ack / progress / error codes" },
-];
+  { name: 'face_select', prop: 'Write', desc: 'Preset/custom face index (1 byte)' },
+  {
+    name: 'image_data',
+    prop: 'Write, chunked',
+    desc: 'frame idx(1B)+total chunks(2B)+chunk idx(2B)+payload',
+  },
+  { name: 'brightness', prop: 'Read/Write', desc: '0–255, debounced writes' },
+  { name: 'boot_anim_flag', prop: 'Write', desc: 'Enable/disable custom boot sequence' },
+  { name: 'status', prop: 'Notify', desc: 'Transfer ack / progress / error codes' },
+]
 
 export function DebugPanel({ ble }: { ble: BLEManagerApi }) {
-  const { history, clearHistory, deleteLog } = useTransferHistory();
+  const { history, clearHistory, deleteLog } = useTransferHistory()
 
   return (
     <div className="flex h-full flex-col px-5 py-6">
       <h2 className="text-lg font-semibold text-white">Developer / GATT</h2>
-      <p className="text-xs text-zinc-500">Mock harness for development before hardware is ready.</p>
+      <p className="text-xs text-zinc-500">
+        Mock harness for development before hardware is ready.
+      </p>
 
       <div className="mt-4 overflow-hidden rounded-xl border border-zinc-800">
         <table className="w-full text-left text-[11px]">
@@ -28,7 +34,7 @@ export function DebugPanel({ ble }: { ble: BLEManagerApi }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-900">
-            {GATT_ROWS.map((r) => (
+            {GATT_ROWS.map(r => (
               <tr key={r.name} className="text-zinc-300">
                 <td className="px-2.5 py-2 font-mono text-blue-300">{r.name}</td>
                 <td className="px-2.5 py-2 text-zinc-400">{r.prop}</td>
@@ -66,7 +72,7 @@ export function DebugPanel({ ble }: { ble: BLEManagerApi }) {
             <Clock className="h-3.5 w-3.5" /> Transfer History
           </div>
           <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-900/60">
-            {history.map((log) => (
+            {history.map(log => (
               <div
                 key={log.id}
                 className="flex items-center justify-between border-b border-zinc-800 px-3 py-2 last:border-0"
@@ -76,18 +82,19 @@ export function DebugPanel({ ble }: { ble: BLEManagerApi }) {
                     <span className="text-[10px] font-medium text-zinc-300">{log.faceName}</span>
                     <span
                       className={`text-[9px] px-1.5 py-0.5 rounded ${
-                        log.status === "success"
-                          ? "bg-emerald-950/60 text-emerald-400"
-                          : log.status === "failed"
-                          ? "bg-red-950/60 text-red-400"
-                          : "bg-amber-950/60 text-amber-400"
+                        log.status === 'success'
+                          ? 'bg-emerald-950/60 text-emerald-400'
+                          : log.status === 'failed'
+                            ? 'bg-red-950/60 text-red-400'
+                            : 'bg-amber-950/60 text-amber-400'
                       }`}
                     >
                       {log.status}
                     </span>
                   </div>
                   <div className="text-[9px] text-zinc-500">
-                    {new Date(log.timestamp).toLocaleString()} · {(log.size / 1024).toFixed(1)}KB · {(log.duration / 1000).toFixed(2)}s
+                    {new Date(log.timestamp).toLocaleString()} · {(log.size / 1024).toFixed(1)}KB ·{' '}
+                    {(log.duration / 1000).toFixed(2)}s
                   </div>
                 </div>
                 <button
@@ -102,5 +109,5 @@ export function DebugPanel({ ble }: { ble: BLEManagerApi }) {
         </>
       )}
     </div>
-  );
+  )
 }

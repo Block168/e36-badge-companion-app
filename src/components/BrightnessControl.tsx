@@ -1,9 +1,9 @@
-import { Sun, SunDim } from "lucide-react";
-import type { BLEManagerApi } from "../hooks/useBLEManager";
+import { Sun, SunDim } from 'lucide-react'
+import type { BLEManagerApi } from '../hooks/useBLEManager'
 
 export function BrightnessControl({ ble }: { ble: BLEManagerApi }) {
-  const { brightness, setBrightness, connectionState, pendingByteWrite } = ble;
-  const disabled = connectionState !== "ready";
+  const { brightness, setBrightness, connectionState } = ble
+  const disabled = connectionState !== 'ready'
 
   return (
     <div className="flex h-full flex-col px-5 py-6">
@@ -16,8 +16,9 @@ export function BrightnessControl({ ble }: { ble: BLEManagerApi }) {
             className="absolute inset-0 rounded-full"
             style={{
               background: `conic-gradient(#3b82f6 ${brightness * 3.6}deg, transparent ${brightness * 3.6}deg)`,
-              mask: "radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 10px))",
-              WebkitMask: "radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 10px))",
+              mask: 'radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 10px))',
+              WebkitMask:
+                'radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 10px))',
             }}
           />
           <div className="text-center">
@@ -34,7 +35,7 @@ export function BrightnessControl({ ble }: { ble: BLEManagerApi }) {
           max={100}
           value={brightness}
           disabled={disabled}
-          onChange={(e) => setBrightness(Number(e.target.value))}
+          onChange={e => setBrightness(Number(e.target.value))}
           className="w-full accent-blue-500 disabled:opacity-40"
         />
         <Sun className="h-4 w-4 text-zinc-300" />
@@ -46,5 +47,5 @@ export function BrightnessControl({ ble }: { ble: BLEManagerApi }) {
         </p>
       )}
     </div>
-  );
+  )
 }
