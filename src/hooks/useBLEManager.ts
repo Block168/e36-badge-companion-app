@@ -66,9 +66,16 @@ export function useBLEManager() {
     setLog(prev => [...prev.slice(-49), logLine(kind, msg)])
   }, [])
 
-  // Check if Web Bluetooth is available
+  // Check if Web Bluetooth is available and we're in a secure context
   const isWebBluetoothAvailable = useCallback(() => {
-    return !!navigator.bluetooth
+    // Web Bluetooth only works on HTTPS or localhost
+    const isSecureContext = window.isSecureContext ||
+      window.location.protocol === 'https:' ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === '0.0.0.0';
+
+    return !!navigator.bluetooth && isSecureContext
   }, [])
 
   // Initialize characteristics map once we have the service
@@ -168,8 +175,20 @@ export function useBLEManager() {
 
   useEffect(() => {
     if (!isWebBluetoothAvailable()) {
-      pushLog('system', 'Web Bluetooth not available in this browser')
-      setConnectionState('unauthorized')
+      // Check if it's specifically a context issue
+      const isSecureContext = window.isSecureContext ||
+        window.location.protocol === 'https:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname === '0.0.0.0';
+
+      if (!!navigator.bluetooth && !isSecureContext) {
+        pushLog('system', 'Web Bluetooth requires HTTPS or localhost')
+        setConnectionState('unauthorized')
+      } else {
+        pushLog('system', 'Web Bluetooth not available in this browser')
+        setConnectionState('unauthorized')
+      }
       return
     }
 
@@ -183,8 +202,20 @@ export function useBLEManager() {
 
   const startScan = useCallback(async () => {
     if (!isWebBluetoothAvailable()) {
-      pushLog('error', 'Web Bluetooth not available')
-      setConnectionState('unauthorized')
+      // Check if it's specifically a context issue
+      const isSecureContext = window.isSecureContext ||
+        window.location.protocol === 'https:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname === '0.0.0.0';
+
+      if (!!navigator.bluetooth && !isSecureContext) {
+        pushLog('error', 'Web Bluetooth requires HTTPS or localhost')
+        setConnectionState('unauthorized')
+      } else {
+        pushLog('error', 'Web Bluetooth not available')
+        setConnectionState('unauthorized')
+      }
       return
     }
 
