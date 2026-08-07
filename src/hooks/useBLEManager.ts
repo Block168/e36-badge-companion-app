@@ -226,12 +226,17 @@ export function useBLEManager() {
       setDiscovered([])
       pushLog('scan', 'Requesting Bluetooth device...')
 
-      // Request device with our service UUID
-      const device = await navigator.bluetooth.requestDevice({
-        // Accept any device that has our service
-        filters: [{ services: [SERVICE_UUID] }],
-        optionalServices: [SERVICE_UUID]
-      })
+      // Request device with our service UUID, with timeout
+      const device = await Promise.race([
+        navigator.bluetooth.requestDevice({
+          // Accept any device that has our service
+          filters: [{ services: [SERVICE_UUID] }],
+          optionalServices: [SERVICE_UUID]
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Request device timeout')), 15000)
+        )
+      ])
 
       bluetoothDeviceRef.current = device
       // We don't get RSSI from requestDevice, use placeholder
@@ -244,21 +249,25 @@ export function useBLEManager() {
       await connectToDevice(device)
     } catch (error) {
       // Handle Web Bluetooth specific errors
-      if (error.name === 'NotFoundError') {
+      // Log the full error for debugging
+      pushLog('error', `Bluetooth requestDevice error:`, error)
+
+      if (error && error.name === 'NotFoundError') {
         // User cancelled or no devices found with our service UUID
         pushLog('scan', 'No E36 badge devices found. Make sure your device is in pairing mode and nearby.')
         setConnectionState('idle')
-      } else if (error.name === 'NotAllowedError' || error.name === 'NotSupportedError') {
+      } else if (error && (error.name === 'NotAllowedError' || error.name === 'NotSupportedError')) {
         // Web Bluetooth is disabled or not supported in this browser/context
         pushLog('error', `Web Bluetooth not available: ${error.name}`)
         setConnectionState('unauthorized')
-      } else if (error.name === 'SecurityError') {
+      } else if (error && error.name === 'SecurityError') {
         // User denied permission or insecure context
         pushLog('scan', 'Permission to access Bluetooth devices was denied')
         setConnectionState('unauthorized')
       } else {
         // Other unexpected errors
-        pushLog('error', `Failed to request device: ${error}`)
+        const errorMessage = error && error.message ? error.message : String(error)
+        pushLog('error', `Failed to request device: ${errorMessage}`)
         setConnectionState('error')
       }
     }
@@ -304,14 +313,18 @@ export function useBLEManager() {
       localStorage.setItem(LAST_DEVICE_KEY, device.id)
     } catch (error) {
       // Handle specific GATT connection errors
-      if (error.name === 'NetworkError') {
+      // Log the full error for debugging
+      pushLog('error', `GATT connection error:`, error)
+
+      if (error && error.name === 'NetworkError') {
         pushLog('error', 'Connection failed: Device disconnected or out of range')
-      } else if (error.name === 'TimeoutError') {
+      } else if (error && error.name === 'TimeoutError') {
         pushLog('error', 'Connection failed: Connection timeout')
-      } else if (error.name === 'InvalidStateError') {
+      } else if (error && error.name === 'InvalidStateError') {
         pushLog('error', 'Connection failed: Invalid device state')
       } else {
-        pushLog('error', `Connection failed: ${error}`)
+        const errorMessage = error && error.message ? error.message : String(error)
+        pushLog('error', `Connection failed: ${errorMessage}`)
       }
       setConnectionState('error')
       await cleanupBluetooth()
