@@ -212,12 +212,21 @@ export function useBLEManager() {
       // Try to connect
       await connectToDevice(device)
     } catch (error) {
-      // Handle user cancellation or other errors
-      if (error.name === 'NotFoundError' || error.name === 'NotReadableError' || error.name === 'SecurityError') {
-        // User cancelled or denied permission
-        pushLog('scan', 'User did not select a device or denied permission')
+      // Handle Web Bluetooth specific errors
+      if (error.name === 'NotFoundError') {
+        // User cancelled or no devices found with our service UUID
+        pushLog('scan', 'No E36 badge devices found. Make sure your device is in pairing mode and nearby.')
         setConnectionState('idle')
+      } else if (error.name === 'NotAllowedError' || error.name === 'NotSupportedError') {
+        // Web Bluetooth is disabled or not supported in this browser/context
+        pushLog('error', `Web Bluetooth not available: ${error.name}`)
+        setConnectionState('unauthorized')
+      } else if (error.name === 'SecurityError') {
+        // User denied permission or insecure context
+        pushLog('scan', 'Permission to access Bluetooth devices was denied')
+        setConnectionState('unauthorized')
       } else {
+        // Other unexpected errors
         pushLog('error', `Failed to request device: ${error}`)
         setConnectionState('error')
       }
@@ -263,7 +272,16 @@ export function useBLEManager() {
       // Save last connected device
       localStorage.setItem(LAST_DEVICE_KEY, device.id)
     } catch (error) {
-      pushLog('error', `Connection failed: ${error}`)
+      // Handle specific GATT connection errors
+      if (error.name === 'NetworkError') {
+        pushLog('error', 'Connection failed: Device disconnected or out of range')
+      } else if (error.name === 'TimeoutError') {
+        pushLog('error', 'Connection failed: Connection timeout')
+      } else if (error.name === 'InvalidStateError') {
+        pushLog('error', 'Connection failed: Invalid device state')
+      } else {
+        pushLog('error', `Connection failed: ${error}`)
+      }
       setConnectionState('error')
       await cleanupBluetooth()
       throw error
