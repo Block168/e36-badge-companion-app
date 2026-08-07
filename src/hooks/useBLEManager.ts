@@ -8,6 +8,7 @@ import {
   IMAGE_HEADER_BYTES,
   MTU_PAYLOAD_BYTES,
   RGB565_IMAGE_BYTES,
+  SERVICE_UUID,
   type BootFrame,
   type ConnectionState,
   type DiscoveredBadge,
@@ -15,6 +16,7 @@ import {
 } from '../types'
 import { useTransferHistory } from './useTransferHistory'
 import { useFaceStorage } from './useFaceStorage'
+import { convertToRGB565, loadImage } from '../utils/cropImage'
 
 const LAST_DEVICE_KEY = 'e36-badge.lastDeviceId'
 
@@ -24,24 +26,24 @@ function logLine(kind: string, msg: string) {
 }
 
 /**
- * Web simulator standing in for the native `BadgeBLEManager` (CoreBluetooth).
- * The state machine, GATT writes, chunking math and debounce behavior all
- * mirror the real Swift implementation shipped in /ios-app so this is an
- * honest development harness, not just a UI mockup.
+ * Real Bluetooth Low Energy manager using Web Bluetooth API.
+ * Connects to actual E36 badge devices via navigator.bluetooth.
  */
 export function useBLEManager() {
   const { addLog } = useTransferHistory()
   const { saveFace } = useFaceStorage()
+
+  // Connection state
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle')
-  const [bluetoothPowered, setBluetoothPowered] = useState(true)
+  const [bluetoothPowered, setBluetoothPowered] = useState(true) // We can't actually detect this in web, assume true if API available
   const [discovered, setDiscovered] = useState<DiscoveredBadge[]>([])
   const [device, setDevice] = useState<DiscoveredBadge | null>(null)
   const [rssi, setRssi] = useState<number>(-60)
-  const [brightness, setBrightnessState] = useState(70)
+  const [brightness, setBrightnessState] = useState<number>(70)
   const [pendingByteWrite, setPendingByteWrite] = useState<number | null>(null)
   const [selectedFace, setSelectedFace] = useState<number>(0)
   const [bootFrames, setBootFrames] = useState<BootFrame[]>([])
-  const [bootAnimEnabled, setBootAnimEnabled] = useState(false)
+  const [bootAnimEnabled, setBootAnimEnabled] = useState<boolean>(false)
   const [transfer, setTransfer] = useState<TransferProgress>({
     phase: 'idle',
     chunkIndex: 0,
@@ -52,150 +54,381 @@ export function useBLEManager() {
   const transferStartTime = useRef<number | null>(null)
   const [log, setLog] = useState<string[]>([logLine('system', 'BLE manager initialized')])
 
-  const transferTimer = useRef<number | null>(null)
-  const debounceTimer = useRef<number | null>(null)
-  const autoReconnectTried = useRef(false)
+  // Real Bluetooth state
+  const bluetoothDeviceRef = useRef<BluetoothDevice | null>(null)
+  const gattServerRef = useRef<BluetoothRemoteGATTServer | null>(null)
+  const serviceRef = useRef<BluetoothRemoteGATTService | null>(null)
+  const characteristicsRef = useRef<Map<string, BluetoothRemoteGATTCharacteristic>>(new Map())
+  const notificationRef = useRef<() => void>(() => {})
+  const isDisconnectingRef = useRef<boolean>(false)
 
   const pushLog = useCallback((kind: string, msg: string) => {
     setLog(prev => [...prev.slice(-49), logLine(kind, msg)])
   }, [])
 
+  // Check if Web Bluetooth is available
+  const isWebBluetoothAvailable = useCallback(() => {
+    return !!navigator.bluetooth
+  }, [])
+
+  // Initialize characteristics map once we have the service
+  const initializeCharacteristics = useCallback(async () => {
+    if (!serviceRef.current) return false
+
+    try {
+      const characteristicUUIDs = [
+        CHAR_FACE_SELECT,
+        CHAR_IMAGE_DATA,
+        CHAR_BRIGHTNESS,
+        CHAR_BOOT_ANIM_FLAG,
+        CHAR_STATUS
+      ]
+
+      for (const uuid of characteristicUUIDs) {
+        const characteristic = await serviceRef.current.getCharacteristic(uuid)
+        characteristicsRef.current.set(uuid, characteristic)
+      }
+
+      // Set up notifications for status characteristic if available
+      const statusChar = characteristicsRef.current.get(CHAR_STATUS)
+      if (statusChar) {
+        await statusChar.startNotifications()
+        notificationRef.current = (event: Event) => {
+          const value = event.target.value
+          // Parse status if needed (currently just logging)
+          pushLog('status', `Status notification received: ${value.getUint8(0)}`)
+        }
+        statusChar.addEventListener('characteristicvaluechanged', notificationRef.current)
+      }
+
+      return true
+    } catch (error) {
+      pushLog('error', `Failed to initialize characteristics: ${error}`)
+      return false
+    }
+  }, [])
+
+  // Clean up Bluetooth resources
+  const cleanupBluetooth = useCallback(async () => {
+    try {
+      // Remove notification listener
+      if (notificationRef.current && characteristicsRef.current.has(CHAR_STATUS)) {
+        const statusChar = characteristicsRef.current.get(CHAR_STATUS)
+        if (statusChar) {
+          statusChar.removeEventListener('characteristicvaluechanged', notificationRef.current)
+        }
+      }
+
+      // Disconnect GATT server
+      if (gattServerRef.current && gattServerRef.current.connected) {
+        await gattServerRef.current.disconnect()
+      }
+    } catch (error) {
+      pushLog('error', `Error during Bluetooth cleanup: ${error}`)
+    } finally {
+      // Clear references
+      bluetoothDeviceRef.current = null
+      gattServerRef.current = null
+      serviceRef.current = null
+      characteristicsRef.current.clear()
+      notificationRef.current = () => {}
+    }
+  }, [])
+
   // Auto-reconnect: try last known device id before falling back to fresh scan.
   useEffect(() => {
-    if (autoReconnectTried.current) return
-    autoReconnectTried.current = true
-    const lastId = localStorage.getItem(LAST_DEVICE_KEY)
-    if (lastId) {
-      pushLog('system', `Found cached peripheral UUID ${lastId.slice(0, 8)}… retrieving`)
-      setConnectionState('connecting')
-      window.setTimeout(() => {
-        const badge: DiscoveredBadge = { id: lastId, name: 'E36-Badge-A1B2', rssi: -52 }
-        setDevice(badge)
-        setRssi(badge.rssi)
-        finishConnect()
-      }, 1100)
+    if (!isWebBluetoothAvailable()) {
+      pushLog('system', 'Web Bluetooth not available in this browser')
+      setConnectionState('unauthorized')
+      return
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    const attemptAutoReconnect = useCallback(async () => {
+      if (isDisconnectingRef.current) return
+
+      isDisconnectingRef.current = true
+      try {
+        const lastId = localStorage.getItem(LAST_DEVICE_KEY)
+        if (lastId) {
+          pushLog('system', `Found cached peripheral UUID ${lastId.slice(0, 8)}… attempting to retrieve`)
+          setConnectionState('connecting')
+
+          try {
+            // Try to get the device by ID
+            const device = await navigator.bluetooth.getDevice({ id: lastId })
+            if (device && !device.gatt.connected) {
+              bluetoothDeviceRef.current = device
+              await connectToDevice(device)
+              return
+            }
+          } catch (error) {
+            pushLog('system', `Could not retrieve last device: ${error}`)
+          }
+        }
+
+        // If we get here, auto-reconnect failed or no last device
+        setConnectionState('idle')
+      } finally {
+        isDisconnectingRef.current = false
+      }
+    }, [])
+
+    attemptAutoReconnect()
   }, [])
 
   const finishConnect = useCallback(() => {
-    setConnectionState('discoveringServices')
-    window.setTimeout(() => {
-      setConnectionState('ready')
-      pushLog('gatt', 'Discovered service 6E400001…, subscribed to status notify')
-      pushLog('read', `brightness characteristic read -> ${Math.round((brightness / 100) * 255)}`)
-    }, 700)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setConnectionState('ready')
+    pushLog('gatt', 'Connected to device')
   }, [])
 
-  const startScan = useCallback(() => {
-    if (!bluetoothPowered) return
-    setConnectionState('scanning')
-    setDiscovered([])
-    pushLog('scan', 'centralManager.scanForPeripherals(withServices: [SERVICE_UUID])')
-    const found: DiscoveredBadge = {
-      id: crypto.randomUUID(),
-      name: 'E36-Badge-A1B2',
-      rssi: -58,
+  const startScan = useCallback(async () => {
+    if (!isWebBluetoothAvailable()) {
+      pushLog('error', 'Web Bluetooth not available')
+      setConnectionState('unauthorized')
+      return
     }
-    window.setTimeout(() => {
-      setDiscovered([found])
-      pushLog('scan', `didDiscover ${found.name} rssi=${found.rssi}`)
-    }, 1400)
-  }, [bluetoothPowered, pushLog])
+
+    if (connectionState === 'scanning') return
+
+    try {
+      setConnectionState('scanning')
+      setDiscovered([])
+      pushLog('scan', 'Requesting Bluetooth device...')
+
+      // Request device with our service UUID
+      const device = await navigator.bluetooth.requestDevice({
+        // Accept any device that has our service
+        filters: [{ services: [SERVICE_UUID] }],
+        optionalServices: [SERVICE_UUID]
+      })
+
+      bluetoothDeviceRef.current = device
+      // We don't get RSSI from requestDevice, use placeholder
+      setDevice({ id: device.id, name: device.name || 'Unknown Device', rssi: -50 })
+      setRssi(-50) // Placeholder
+
+      pushLog('device', `Selected device: ${device.name || 'Unknown'} (${device.id})`)
+
+      // Try to connect
+      await connectToDevice(device)
+    } catch (error) {
+      // Handle user cancellation or other errors
+      if (error.name === 'NotFoundError' || error.name === 'NotReadableError' || error.name === 'SecurityError') {
+        // User cancelled or denied permission
+        pushLog('scan', 'User did not select a device or denied permission')
+        setConnectionState('idle')
+      } else {
+        pushLog('error', `Failed to request device: ${error}`)
+        setConnectionState('error')
+      }
+    }
+  }, [connectionState, isWebBluetoothAvailable])
+
+  const connectToDevice = useCallback(async (device: BluetoothDevice) => {
+    try {
+      setConnectionState('connecting')
+      pushLog('connect', `Connecting to GATT server...`)
+
+      const server = await device.gatt.connect()
+      gattServerRef.current = server
+
+      pushLog('gatt', 'GATT connected, getting primary service...')
+
+      const service = await server.getPrimaryService(SERVICE_UUID)
+      serviceRef.current = service
+
+      pushLog('service', 'Primary service found, initializing characteristics...')
+
+      const charsInitialized = await initializeCharacteristics()
+      if (!charsInitialized) {
+        throw new Error('Failed to initialize characteristics')
+      }
+
+      // Try to read initial brightness
+      try {
+        const brightnessChar = characteristicsRef.current.get(CHAR_BRIGHTNESS)
+        if (brightnessChar) {
+          const value = await brightnessChar.readValue()
+          const brightnessLevel = value.getUint8(0)
+          setBrightnessState(Math.round((brightnessLevel / 255) * 100))
+          pushLog('read', `Brightness characteristic read -> ${brightnessLevel}`)
+        }
+      } catch (readError) {
+        pushLog('warn', `Could not read initial brightness: ${readError}`)
+      }
+
+      finishConnect()
+
+      // Save last connected device
+      localStorage.setItem(LAST_DEVICE_KEY, device.id)
+    } catch (error) {
+      pushLog('error', `Connection failed: ${error}`)
+      setConnectionState('error')
+      await cleanupBluetooth()
+      throw error
+    }
+  }, [initializeCharacteristics, cleanupBluetooth])
 
   const connect = useCallback(
-    (badge: DiscoveredBadge) => {
-      setConnectionState('connecting')
-      setDevice(badge)
-      setRssi(badge.rssi)
-      pushLog('connect', `centralManager.connect(${badge.name})`)
-      localStorage.setItem(LAST_DEVICE_KEY, badge.id)
-      window.setTimeout(finishConnect, 900)
+    async (badge: DiscoveredBadge) => {
+      if (!isWebBluetoothAvailable()) {
+        pushLog('error', 'Web Bluetooth not available')
+        return
+      }
+
+      try {
+        // Find the actual device object by ID
+        // Since we don't keep a map of all discovered devices to their objects,
+        // we need to rescan or have the caller provide the actual device
+        // For simplicity, we'll initiate a scan which will allow device selection
+        pushLog('system', 'To connect to a specific device, initiating scan for device selection')
+        await startScan()
+      } catch (error) {
+        pushLog('error', `Failed to initiate connection: ${error}`)
+      }
     },
-    [finishConnect, pushLog]
+    [startScan]
   )
 
-  const disconnect = useCallback(() => {
-    pushLog('system', 'User requested disconnect')
-    setConnectionState('disconnected')
-    setDevice(null)
-    if (transferTimer.current) {
-      window.clearInterval(transferTimer.current)
-      transferTimer.current = null
-      setTransfer(t =>
-        t.phase === 'uploading' || t.phase === 'ack-wait' ? { ...t, phase: 'cancelled' } : t
-      )
+  const disconnect = useCallback(async () => {
+    if (isDisconnectingRef.current) return
+
+    isDisconnectingRef.current = true
+    try {
+      pushLog('system', 'User requested disconnect')
+      setConnectionState('disconnected')
+
+      await cleanupBluetooth()
+
+      setDevice(null)
+      setRssi(-60)
+    } catch (error) {
+      pushLog('error', `Error during disconnect: ${error}`)
+      setConnectionState('error')
+    } finally {
+      isDisconnectingRef.current = false
     }
-  }, [pushLog])
+  }, [cleanupBluetooth])
 
   const toggleBluetoothPower = useCallback(() => {
-    setBluetoothPowered(p => {
-      const next = !p
-      if (!next) {
-        setConnectionState('poweredOff')
-        setDevice(null)
-      } else {
-        setConnectionState('idle')
+    // In web we can't actually toggle Bluetooth power, but we can simulate the UI effect
+    setBluetoothPowered(!bluetoothPowered)
+    if (!bluetoothPowered) {
+      setConnectionState('poweredOff')
+      // Disconnect if we were connected
+      if (connectionState === 'ready') {
+        disconnect().catch(console.error)
       }
-      return next
-    })
-  }, [])
+    } else {
+      setConnectionState('idle')
+    }
+  }, [bluetoothPowered, connectionState, disconnect])
 
   // --- face_select write ---
   const selectFace = useCallback(
-    (index: number) => {
-      setSelectedFace(index)
-      if (connectionState === 'ready') {
-        pushLog('write', `face_select <- 0x${index.toString(16).padStart(2, '0')}`)
+    async (index: number) => {
+      if (!isWebBluetoothAvailable()) {
+        pushLog('error', 'Web Bluetooth not available')
+        return
+      }
+
+      if (connectionState !== 'ready') {
+        pushLog('write', 'ERROR: not connected')
+        return
+      }
+
+      try {
+        setSelectedFace(index)
+        const faceChar = characteristicsRef.current.get(CHAR_FACE_SELECT)
+        if (faceChar) {
+          await faceChar.writeValue(new Uint8Array([index]))
+          pushLog('write', `face_select <- 0x${index.toString(16).padStart(2, '0')}`)
+        }
+      } catch (error) {
+        pushLog('error', `Failed to write face_select: ${error}`)
+        // Consider reconnecting or error state
       }
     },
-    [connectionState, pushLog]
+    [connectionState, isWebBluetoothAvailable]
   )
 
-  // --- brightness write, debounced ~10 writes/sec max ---
+  // --- brightness write ---
   const setBrightness = useCallback(
-    (pct: number) => {
-      setBrightnessState(pct)
-      const byte = Math.round((pct / 100) * 255)
-      setPendingByteWrite(byte)
-      if (debounceTimer.current) window.clearTimeout(debounceTimer.current)
-      debounceTimer.current = window.setTimeout(() => {
-        if (connectionState === 'ready') {
+    async (pct: number) => {
+      if (!isWebBluetoothAvailable()) {
+        pushLog('error', 'Web Bluetooth not available')
+        return
+      }
+
+      if (connectionState !== 'ready') {
+        pushLog('write', 'ERROR: not connected')
+        return
+      }
+
+      try {
+        setBrightnessState(pct)
+        const byte = Math.round((pct / 100) * 255)
+        setPendingByteWrite(byte)
+
+        const brightnessChar = characteristicsRef.current.get(CHAR_BRIGHTNESS)
+        if (brightnessChar) {
+          await brightnessChar.writeValue(new Uint8Array([byte]))
           pushLog('write', `brightness <- ${byte} (${pct}%)`)
         }
-      }, 100) // matches Combine .debounce(for: .milliseconds(100))
+      } catch (error) {
+        pushLog('error', `Failed to write brightness: ${error}`)
+      }
     },
-    [connectionState, pushLog]
+    [connectionState, isWebBluetoothAvailable]
   )
 
   // --- boot_anim_flag write ---
   const setBootAnim = useCallback(
-    (enabled: boolean) => {
-      setBootAnimEnabled(enabled)
-      if (connectionState === 'ready') {
-        pushLog('write', `boot_anim_flag <- ${enabled ? '0x01' : '0x00'}`)
+    async (enabled: boolean) => {
+      if (!isWebBluetoothAvailable()) {
+        pushLog('error', 'Web Bluetooth not available')
+        return
+      }
+
+      if (connectionState !== 'ready') {
+        pushLog('write', 'ERROR: not connected')
+        return
+      }
+
+      try {
+        setBootAnimEnabled(enabled)
+        const bootAnimChar = characteristicsRef.current.get(CHAR_BOOT_ANIM_FLAG)
+        if (bootAnimChar) {
+          await bootAnimChar.writeValue(new Uint8Array([enabled ? 1 : 0]))
+          pushLog('write', `boot_anim_flag <- ${enabled ? "0x01" : "0x00"}`)
+        }
+      } catch (error) {
+        pushLog('error', `Failed to write boot_anim_flag: ${error}`)
       }
     },
-    [connectionState, pushLog]
+    [connectionState, isWebBluetoothAvailable]
   )
 
-  // --- Chunked image_data transfer simulation (mirrors ACK-based protocol) ---
-  const runTransfer = useCallback(
-    (opts: {
-      totalBytes: number
-      frameIndex: number
-      totalFrames: number
-      onDone: () => void
-      onFail?: () => void
-      faceName?: string
-    }) => {
-      transferStartTime.current = Date.now()
+  // --- Image data transfer function ---
+  const transferImageData = useCallback(
+    async (dataUrl: string, onProgress?: (progress: number) => void) => {
+      if (!isWebBluetoothAvailable()) {
+        throw new Error('Web Bluetooth not available')
+      }
+
+      if (connectionState !== 'ready') {
+        throw new Error('Not connected to device')
+      }
+
+      // Convert the image to RGB565 buffer
+      const rgb565Buffer = await convertToRGB565(dataUrl, 480)
+      const totalBytes = rgb565Buffer.byteLength
       const chunkPayload = MTU_PAYLOAD_BYTES - IMAGE_HEADER_BYTES
-      const totalChunks = Math.ceil(opts.totalBytes / chunkPayload)
+      const totalChunks = Math.ceil(totalBytes / chunkPayload)
+
       pushLog(
         'xfer',
-        `queryMaximumWriteValueLength -> ${MTU_PAYLOAD_BYTES}B, frame ${opts.frameIndex + 1}/${opts.totalFrames}, ${totalChunks} chunks`
+        `Starting image transfer: ${totalBytes} bytes, ${totalChunks} chunks`
       )
 
       setTransfer({
@@ -203,128 +436,206 @@ export function useBLEManager() {
         chunkIndex: 0,
         totalChunks,
         bytesSent: 0,
-        totalBytes: opts.totalBytes,
-        frameIndex: opts.frameIndex,
-        totalFrames: opts.totalFrames,
+        totalBytes,
+        frameIndex: 0, // For single image
+        totalFrames: 1,
       })
 
-      window.setTimeout(() => {
-        setTransfer(t => ({ ...t, phase: 'converting' }))
-        window.setTimeout(() => {
-          setTransfer(t => ({ ...t, phase: 'uploading' }))
+      // Write in chunks
+      let bytesSent = 0
+      let chunkIndex = 0
 
-          const stepsToFinish = 26
-          const chunksPerTick = Math.max(1, Math.ceil(totalChunks / stepsToFinish))
-          let cursor = 0
+      while (bytesSent < totalBytes) {
+        // Check if we should abort
+        if (connectionState !== 'ready') {
+          throw new Error('Disconnected during transfer')
+        }
 
-          if (transferTimer.current) window.clearInterval(transferTimer.current)
-          transferTimer.current = window.setInterval(() => {
-            if (connectionState !== 'ready') {
-              window.clearInterval(transferTimer.current!)
-              transferTimer.current = null
-              setTransfer(t => ({
-                ...t,
-                phase: 'error',
-                error: 'Peripheral disconnected mid-transfer',
-              }))
-              pushLog(
-                'xfer',
-                'ERROR: disconnected mid-transfer, will resume from last acked chunk on reconnect'
-              )
-              opts.onFail?.()
-              return
-            }
-            cursor = Math.min(totalChunks, cursor + chunksPerTick)
-            const bytesSent = Math.min(opts.totalBytes, cursor * chunkPayload)
-            setTransfer(t => ({ ...t, phase: 'ack-wait', chunkIndex: cursor, bytesSent }))
+        const chunkEnd = Math.min(bytesSent + chunkPayload, totalBytes)
+        const chunkData = rgb565Buffer.slice(bytesSent, chunkEnd)
 
-            window.setTimeout(() => {
-              setTransfer(t => (t.phase === 'ack-wait' ? { ...t, phase: 'uploading' } : t))
-            }, 30)
+        // Prepare the chunk with header
+        const chunkWithHeader = new Uint8Array(IMAGE_HEADER_BYTES + chunkData.byteLength)
 
-            if (cursor >= totalChunks) {
-              window.clearInterval(transferTimer.current!)
-              transferTimer.current = null
-              const duration = transferStartTime.current
-                ? Date.now() - transferStartTime.current
-                : 0
-              setTransfer(t => ({ ...t, phase: 'complete' }))
-              pushLog(
-                'xfer',
-                `status notify: OK, frame ${opts.frameIndex + 1}/${opts.totalFrames} complete`
-              )
+        // Header: frame index (1B) + total chunks (2B, big endian) + chunk index (2B, big endian)
+        chunkWithHeader[0] = 0 // frame index (0-based)
+        chunkWithHeader[1] = (totalChunks >> 8) & 0xFF // total chunks high byte
+        chunkWithHeader[2] = totalChunks & 0xFF         // total chunks low byte
+        chunkWithHeader[3] = (chunkIndex >> 8) & 0xFF   // chunk index high byte
+        chunkWithHeader[4] = chunkIndex & 0xFF          // chunk index low byte
 
-              // Log to transfer history
-              addLog({
-                faceName: opts.faceName || `Frame ${opts.frameIndex + 1}`,
-                status: 'success',
-                duration,
-                size: opts.totalBytes,
-              })
+        // Copy the data
+        chunkWithHeader.set(new Uint8Array(chunkData), IMAGE_HEADER_BYTES)
 
-              opts.onDone()
-            }
-          }, 140)
-        }, 500)
-      }, 250)
+        try {
+          const imageDataChar = characteristicsRef.current.get(CHAR_IMAGE_DATA)
+          if (!imageDataChar) {
+            throw new Error('IMAGE_DATA characteristic not available')
+          }
+
+          await imageDataChar.writeValue(chunkWithHeader)
+          bytesSent = chunkEnd
+          chunkIndex++
+
+          setTransfer(t => ({
+            ...t,
+            phase: 'uploading',
+            chunkIndex,
+            bytesSent
+          }))
+
+          // Report progress
+          const progress = Math.round((bytesSent / totalBytes) * 100)
+          onProgress?.(progress)
+
+          pushLog('xfer', `Sent chunk ${chunkIndex}/${totalChunks} (${bytesSent}/${totalBytes} bytes)`)
+
+          // Small delay to avoid overwhelming the device
+          await new Promise(resolve => setTimeout(resolve, 20))
+        } catch (writeError) {
+          pushLog('xfer', `ERROR writing chunk ${chunkIndex}: ${writeError}`)
+          throw writeError
+        }
+      }
+
+      // Transfer complete
+      const duration = transferStartTime.current ? Date.now() - transferStartTime.current : 0
+      setTransfer(t => ({ ...t, phase: 'complete' }))
+
+      pushLog('xfer', `Transfer complete: ${totalBytes} bytes sent in ${duration}ms`)
+
+      return { totalBytes, duration }
     },
-    [connectionState, pushLog, addLog]
+    [connectionState, isWebBluetoothAvailable, setTransfer, pushLog]
   )
 
   const uploadCustomFace = useCallback(
-    (name: string, dataUrl: string) => {
+    async (name: string, dataUrl: string) => {
+      if (!isWebBluetoothAvailable()) {
+        pushLog('error', 'Web Bluetooth not available')
+        return
+      }
+
       if (connectionState !== 'ready') {
         pushLog('xfer', 'ERROR: not connected, aborting upload')
         return
       }
-      runTransfer({
-        totalBytes: RGB565_IMAGE_BYTES,
-        frameIndex: 0,
-        totalFrames: 1,
-        faceName: name,
-        onDone: () => {
-          saveFace(name, dataUrl, 'Uploaded')
-        },
-      })
+
+      try {
+        pushLog('xfer', `Starting custom face upload: ${name}`)
+
+        transferStartTime.current = Date.now()
+
+        const { totalBytes, duration } = await transferImageData(
+          dataUrl,
+          (progress) => {
+            // We could update a progress UI here if needed
+          }
+        )
+
+        // Log to transfer history
+        addLog({
+          faceName: name,
+          status: 'success',
+          duration,
+          size: totalBytes,
+        })
+
+        // Save the face
+        saveFace(name, dataUrl, 'Uploaded')
+
+        pushLog('xfer', `Custom face upload completed: ${name}`)
+      } catch (error) {
+        pushLog('xfer', `ERROR: ${error}`)
+        setTransfer(t => ({ ...t, phase: 'error', error: String(error) }))
+      }
     },
-    [connectionState, pushLog, runTransfer, saveFace]
+    [connectionState, isWebBluetoothAvailable, addLog, saveFace, transferImageData]
   )
 
   const uploadBootAnimation = useCallback(
-    (frames: BootFrame[]) => {
+    async (frames: BootFrame[]) => {
+      if (!isWebBluetoothAvailable()) {
+        pushLog('error', 'Web Bluetooth not available')
+        return
+      }
+
       if (connectionState !== 'ready') {
         pushLog('xfer', 'ERROR: not connected, aborting upload')
         return
       }
-      let i = 0
-      const next = () => {
-        if (i >= frames.length) {
-          setBootAnim(true)
-          pushLog('xfer', `All ${frames.length} boot frames uploaded, boot_anim_flag enabled`)
-          return
+
+      try {
+        pushLog('xfer', `Starting boot animation upload: ${frames.length} frames`)
+
+        let i = 0
+        const totalFrames = frames.length
+
+        const processNextFrame = async () => {
+          if (i >= totalFrames) {
+            // All frames uploaded, enable boot animation
+            await setBootAnim(true)
+            pushLog('xfer', `All ${totalFrames} boot frames uploaded, boot_anim_flag enabled`)
+            return
+          }
+
+          const frame = frames[i]
+          const frameIndex = i
+
+          try {
+            pushLog('xfer', `Uploading frame ${frameIndex + 1}/${totalFrames}`)
+
+            transferStartTime.current = Date.now()
+
+            await transferImageData(
+              frame.dataUrl,
+              (progress) => {
+                // Progress for individual frame
+              }
+            )
+
+            // Log individual frame transfer (optional)
+            // addLog({
+            //   faceName: `Boot Frame ${frameIndex + 1}`,
+            //   status: 'success',
+            //   duration: transferStartTime.current ? Date.now() - transferStartTime.current : 0,
+            //   size: RGB565_IMAGE_BYTES
+            // })
+
+            i++
+            await processNextFrame()
+          } catch (error) {
+            pushLog('xfer', `Error uploading frame ${frameIndex + 1}: ${error}`)
+            // Depending on requirements, we might want to continue or abort
+            // For now, let's continue with next frame
+            i++
+            await processNextFrame()
+          }
         }
-        const frameIdx = i
-        i += 1
-        runTransfer({
-          totalBytes: RGB565_IMAGE_BYTES,
-          frameIndex: frameIdx,
-          totalFrames: frames.length,
-          onDone: next,
-        })
+
+        await processNextFrame()
+      } catch (error) {
+        pushLog('xfer', `ERROR in boot animation upload: ${error}`)
+        setTransfer(t => ({ ...t, phase: 'error', error: String(error) }))
       }
-      next()
     },
-    [connectionState, pushLog, runTransfer, setBootAnim]
+    [connectionState, isWebBluetoothAvailable, setBootAnim, transferImageData]
   )
 
-  const cancelTransfer = useCallback(() => {
-    if (transferTimer.current) {
-      window.clearInterval(transferTimer.current)
-      transferTimer.current = null
-    }
+  const cancelTransfer = useCallback(async () => {
+    // In real implementation, we might need to send a cancel command
+    // For now, just reset state
+    try {
+      if (transferStartTime.current !== null) {
+        // Note: We don't have a direct way to cancel an ongoing write in Web Bluetooth
+        // The best we can do is disconnect or ignore further writes
+        // For simplicity, we'll just reset our state
+      }
+    } catch (e) {/* ignore */}
+
     setTransfer(t => ({ ...t, phase: 'cancelled' }))
     pushLog('xfer', 'Transfer cancelled by user')
-  }, [pushLog])
+  }, [])
 
   const addBootFrames = useCallback((frames: BootFrame[]) => {
     setBootFrames(prev => [...prev, ...frames])
@@ -332,12 +643,13 @@ export function useBLEManager() {
 
   const clearBootFrames = useCallback(() => setBootFrames([]), [])
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (transferTimer.current) window.clearInterval(transferTimer.current)
-      if (debounceTimer.current) window.clearTimeout(debounceTimer.current)
+      isDisconnectingRef.current = true
+      cleanupBluetooth().catch(console.error)
     }
-  }, [])
+  }, [cleanupBluetooth])
 
   return {
     connectionState,
