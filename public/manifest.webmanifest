@@ -1,0 +1,31 @@
+{
+  "name": "Faces — Motorsport LED Badge",
+  "short_name": "Faces",
+  "description": "Wirelessly customize your E36 badge over Bluetooth Low Energy — faces, brightness, boot animations, and a live GPS speed gauge.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#070709",
+  "theme_color": "#070709",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

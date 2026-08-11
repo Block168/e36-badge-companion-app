@@ -1,0 +1,272 @@
+@import "tailwindcss";
+
+/* Self-hosted fonts — bundled inline so the app works fully offline */
+@font-face {
+  font-family: "Orbitron";
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url("../node_modules/@fontsource-variable/orbitron/files/orbitron-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/chakra-petch/files/chakra-petch-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/chakra-petch/files/chakra-petch-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/chakra-petch/files/chakra-petch-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/chakra-petch/files/chakra-petch-latin-700-normal.woff2") format("woff2");
+}
+
+@theme {
+  --font-display: "Orbitron", "Chakra Petch", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Chakra Petch", ui-sans-serif, system-ui, sans-serif;
+
+  --color-m-blue-300: #7fb2f0;
+  --color-m-blue-400: #4f8fe0;
+  --color-m-blue-500: #2f6fd6;
+  --color-m-blue-600: #1f4fa8;
+  --color-m-blue-700: #17408c;
+  --color-m-blue-900: #0b1b3f;
+  --color-m-red-300: #f58f8a;
+  --color-m-red-400: #f2635f;
+  --color-m-red-500: #e8443e;
+  --color-m-red-600: #c42822;
+  --color-carbon-700: #15151a;
+  --color-carbon-800: #101014;
+  --color-carbon-900: #0b0b0e;
+  --color-carbon-950: #070709;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-carbon-950 text-zinc-100 antialiased;
+    background-image:
+      radial-gradient(1100px 500px at 50% -10%, rgba(47, 111, 214, 0.14), transparent 60%),
+      radial-gradient(900px 500px at 100% 110%, rgba(232, 68, 62, 0.07), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: rgba(47, 111, 214, 0.35);
+    color: #fff;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #26262e;
+    border-radius: 9999px;
+    border: 2px solid #0b0b0e;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #33333d;
+  }
+}
+
+@layer components {
+  /* Carbon fiber weave */
+  .carbon {
+    background-color: #0b0b0e;
+    background-image:
+      linear-gradient(27deg, #14141a 5px, transparent 5px),
+      linear-gradient(207deg, #0d0d11 5px, transparent 5px),
+      linear-gradient(27deg, #101016 5px, transparent 5px),
+      linear-gradient(207deg, #111116 5px, transparent 5px),
+      linear-gradient(90deg, #121218 10px, transparent 10px),
+      linear-gradient(#101015 25%, #0c0c0f 25%, #0c0c0f 50%, transparent 50%, transparent 75%, #0d0d10 75%, #0d0d10);
+    background-size: 20px 20px;
+  }
+
+  .carbon-soft {
+    background-color: #0c0c10;
+    background-image:
+      linear-gradient(27deg, #131318 5px, transparent 5px),
+      linear-gradient(207deg, #0d0d11 5px, transparent 5px),
+      linear-gradient(27deg, #0f0f14 5px, transparent 5px),
+      linear-gradient(207deg, #101014 5px, transparent 5px);
+    background-size: 20px 20px;
+  }
+
+  /* BMW Motorsport tricolor stripe */
+  .m-stripe {
+    background: linear-gradient(
+      90deg,
+      #7fb2f0 0%,
+      #2f6fd6 28%,
+      #1f4fa8 28%,
+      #1f4fa8 34%,
+      #e8443e 34%,
+      #c42822 60%,
+      #e8443e 60%,
+      #e8443e 66%,
+      #7fb2f0 66%
+    );
+  }
+
+  .m-stripe-v {
+    background: linear-gradient(
+      180deg,
+      #7fb2f0 0%,
+      #2f6fd6 28%,
+      #1f4fa8 28%,
+      #1f4fa8 34%,
+      #e8443e 34%,
+      #c42822 60%,
+      #e8443e 60%,
+      #e8443e 66%,
+      #7fb2f0 66%
+    );
+  }
+
+  .card-track {
+    @apply relative overflow-hidden rounded-2xl border border-zinc-800/80 bg-carbon-900/80 shadow-[0_10px_40px_-12px_rgba(0,0,0,0.8)] backdrop-blur-sm;
+  }
+
+  .card-track::before {
+    content: "";
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px;
+    background: linear-gradient(90deg, transparent, rgba(127, 178, 240, 0.35), transparent);
+  }
+
+  .heading-display {
+    @apply font-display font-bold uppercase tracking-wide;
+  }
+
+  .text-glow-blue {
+    text-shadow: 0 0 18px rgba(47, 111, 214, 0.55);
+  }
+
+  .text-glow-red {
+    text-shadow: 0 0 18px rgba(232, 68, 62, 0.5);
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-m-blue-500 to-m-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-m-blue-900/40 ring-1 ring-inset ring-white/10 transition hover:from-m-blue-400 hover:to-m-blue-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900/60 px-4 py-2.5 text-sm font-semibold text-zinc-200 transition hover:border-zinc-500 hover:bg-zinc-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-m-red-600/40 bg-m-red-600/10 px-4 py-2.5 text-sm font-semibold text-m-red-300 transition hover:bg-m-red-600/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  /* Filled range slider */
+  input[type="range"].slider-track {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 10px;
+    border-radius: 9999px;
+    outline: none;
+    cursor: pointer;
+    background: linear-gradient(90deg, #2f6fd6 var(--fill, 50%), #20202a var(--fill, 50%));
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+
+  input[type="range"].slider-track::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid #2f6fd6;
+    box-shadow: 0 0 14px rgba(47, 111, 214, 0.75);
+    transition: transform 0.12s ease;
+  }
+
+  input[type="range"].slider-track::-webkit-slider-thumb:hover {
+    transform: scale(1.12);
+  }
+
+  input[type="range"].slider-track::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid #2f6fd6;
+    box-shadow: 0 0 14px rgba(47, 111, 214, 0.75);
+  }
+
+  input[type="range"].slider-track:focus-visible {
+    box-shadow: 0 0 0 3px rgba(47, 111, 214, 0.4);
+  }
+}
+
+@keyframes radar-ping {
+  0% {
+    transform: scale(0.25);
+    opacity: 0.8;
+  }
+  80%,
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+@keyframes radar-sweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.radar-ping {
+  animation: radar-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.radar-sweep {
+  animation: radar-sweep 2.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,88 @@
+import type { PresetFace } from "../types";
+
+export const PRESET_FACES: PresetFace[] = [
+  {
+    id: "roundel-glow",
+    name: "Roundel Glow",
+    description: "Illuminated spinning roundel with animated glow ring.",
+    accent: "#2563eb",
+    category: "motorsport",
+  },
+  {
+    id: "checkered-flag",
+    name: "Checkered Flag",
+    description: "Classic finish-line checkerboard with bold contrast.",
+    accent: "#0f172a",
+    category: "motorsport",
+  },
+  {
+    id: "speedometer",
+    name: "Speedometer",
+    description: "Analog-style gauge face with redline sweep.",
+    accent: "#f97316",
+    category: "utility",
+  },
+  {
+    id: "flame",
+    name: "Flame",
+    description: "Layered flame graphic in racing orange & red.",
+    accent: "#ef4444",
+    category: "motorsport",
+  },
+  {
+    id: "carbon-ring",
+    name: "Carbon Ring",
+    description: "Carbon-fiber texture ring with metallic bezel.",
+    accent: "#64748b",
+    category: "utility",
+  },
+  {
+    id: "minimal-clock",
+    name: "Minimal Clock",
+    description: "Clean minimalist time face with thin hands.",
+    accent: "#22c55e",
+    category: "minimal",
+  },
+  {
+    id: "tachometer",
+    name: "Tachometer",
+    description: "RPM gauge with a hot needle kissing the redline at 8k.",
+    accent: "#ef4444",
+    category: "motorsport",
+  },
+  {
+    id: "boost-gauge",
+    name: "Boost Gauge",
+    description: "Turbo pressure gauge sweeping from vacuum to 2.0 bar.",
+    accent: "#22d3ee",
+    category: "motorsport",
+  },
+  {
+    id: "racing-stripes",
+    name: "Racing Stripes",
+    description: "Twin Le Mans-style stripes over forged carbon.",
+    accent: "#e8443e",
+    category: "motorsport",
+  },
+  {
+    id: "kidney-grille",
+    name: "Kidney Grille",
+    description: "Glowing twin kidney grille with vertical slats.",
+    accent: "#60a5fa",
+    category: "motorsport",
+  },
+  {
+    id: "gear",
+    name: "Gearbox",
+    description: "Big gear numeral with a row of shift lights ready to scream.",
+    accent: "#a3e635",
+    category: "minimal",
+  },
+  {
+    id: "track-map",
+    name: "Track Map",
+    description: "Circuit layout with start/finish checker under the lights.",
+    accent: "#fbbf24",
+    category: "motorsport",
+  },
+];
