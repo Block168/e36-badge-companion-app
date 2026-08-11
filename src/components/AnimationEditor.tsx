@@ -72,7 +72,13 @@ export function AnimationEditor() {
   const runEffect = useCallback(
     async (effect: EffectName) => {
       if (effectRunning) return;
-      const base = frames[frames.length - 1]?.dataUrl ?? renderPresetFaceDataUrl(PRESET_FACES[0]);
+      let base = renderPresetFaceDataUrl(PRESET_FACES[0]);
+      for (let i = frames.length - 1; i >= 0; i--) {
+        if (!frames[i].dim) {
+          base = frames[i].dataUrl;
+          break;
+        }
+      }
       setEffectRunning(effect);
       try {
         const generated = await generateEffectFrames(base, effect, 8, 120);

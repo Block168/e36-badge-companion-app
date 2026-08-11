@@ -33,6 +33,8 @@ export interface AnimationFrame {
   id: string;
   dataUrl: string;
   durationMs: number;
+  /** True when the frame is intentionally dim (e.g. the "off" half of a blink). */
+  dim?: boolean;
 }
 
 export interface TransferRecord {

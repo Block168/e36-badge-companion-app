@@ -43,6 +43,7 @@ export async function generateEffectFrames(
   const frames: AnimationFrame[] = [];
   for (let i = 0; i < frameCount; i++) {
     const t = frameCount > 1 ? i / (frameCount - 1) : 0;
+    let dim = false;
 
     ctx.save();
     ctx.fillStyle = "#000";
@@ -51,12 +52,15 @@ export async function generateEffectFrames(
 
     switch (effect) {
       case "blink": {
-        ctx.globalAlpha = i % 2 === 0 ? 1 : 0.12;
+        const on = i % 2 === 0;
+        dim = !on;
+        ctx.globalAlpha = on ? 1 : 0.12;
         ctx.drawImage(img, -halfW, -halfH, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         break;
       }
       case "pulse": {
         const alpha = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2));
+        dim = alpha < 0.55;
         ctx.globalAlpha = alpha;
         ctx.drawImage(img, -halfW, -halfH, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         break;
@@ -78,7 +82,7 @@ export async function generateEffectFrames(
     }
 
     ctx.restore();
-    frames.push({ id: crypto.randomUUID(), dataUrl: canvas.toDataURL("image/png"), durationMs });
+    frames.push({ id: crypto.randomUUID(), dataUrl: canvas.toDataURL("image/png"), durationMs, dim });
   }
 
   return frames;
