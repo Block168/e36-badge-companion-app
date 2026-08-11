@@ -40,7 +40,8 @@ interface BadgeContextValue {
   setBrightness: (value: number) => void;
   commitBrightness: (value: number) => Promise<void>;
   sendFace: (dataUrl: string, name: string) => Promise<void>;
-  sendAnimation: (frames: AnimationFrame[], name: string) => Promise<void>;
+  sendAnimation: (frames: AnimationFrame[], name: string, opts?: { persist?: boolean }) => Promise<void>;
+  sendFrame: (dataUrl: string, name: string) => Promise<void>;
   addCustomFace: (face: CustomFace) => void;
   removeCustomFace: (id: string) => void;
   clearHistory: () => void;
@@ -284,6 +285,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
       };
       try {
         const bytes = await client.sendFace(dataUrl, name, onProgress);
+        await client.saveConfig({ active: "face" });
         recordTransfer({
           id: crypto.randomUUID(),
           type: "face",
@@ -315,7 +317,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
   );
 
   const sendAnimation = useCallback(
-    async (frames: AnimationFrame[], name: string) => {
+    async (frames: AnimationFrame[], name: string, opts?: { persist?: boolean }) => {
       const client = clientRef.current;
       if (connectionState !== "connected" || !client) {
         pushToast("error", "Connect to a badge first");
@@ -333,6 +335,9 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
       };
       try {
         const bytes = await client.sendAnimation(frames, onProgress);
+        if (opts?.persist !== false) {
+          await client.saveConfig({ active: "animation" });
+        }
         recordTransfer({
           id: crypto.randomUUID(),
           type: "animation",
@@ -362,6 +367,51 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
       }
     },
     [connectionState, pushToast, recordTransfer],
+  );
+
+  const sendFrame = useCallback(
+    async (dataUrl: string, name: string) => {
+      const client = clientRef.current;
+      if (connectionState !== "connected" || !client) {
+        pushToast("error", "Connect to a badge first");
+        return;
+      }
+      const startedAt = Date.now();
+      setActiveTransfer({ label: `Testing frame on badge`, percent: 0 });
+      const onProgress: ProgressHandler = (progress) => {
+        setActiveTransfer({ label: `Testing frame on badge`, percent: progress.percent });
+      };
+      try {
+        const bytes = await client.sendFrame(dataUrl, onProgress);
+        recordTransfer({
+          id: crypto.randomUUID(),
+          type: "frame",
+          name,
+          timestamp: Date.now(),
+          sizeBytes: bytes,
+          durationMs: Date.now() - startedAt,
+          success: true,
+        });
+        pushToast("success", "Frame flashed to badge");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        recordTransfer({
+          id: crypto.randomUUID(),
+          type: "frame",
+          name,
+          timestamp: Date.now(),
+          sizeBytes: 0,
+          durationMs: Date.now() - startedAt,
+          success: false,
+          detail: message,
+        });
+        pushToast("error", "Failed to flash frame to badge");
+        appendLog("error", "Live frame write failed", message);
+      } finally {
+        setActiveTransfer(null);
+      }
+    },
+    [appendLog, connectionState, pushToast, recordTransfer],
   );
 
   const addCustomFace = useCallback((face: CustomFace) => {
@@ -411,6 +461,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
       commitBrightness,
       sendFace,
       sendAnimation,
+      sendFrame,
       addCustomFace,
       removeCustomFace,
       clearHistory,
@@ -439,6 +490,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
       commitBrightness,
       sendFace,
       sendAnimation,
+      sendFrame,
       addCustomFace,
       removeCustomFace,
       clearHistory,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Film, Loader2, Play, Plus, Send, Square, Trash2, Wand2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Film, Loader2, Play, Plus, Send, Square, Trash2, Wand2, Zap } from "lucide-react";
 import { PRESET_FACES } from "../data/presetFaces";
 import { renderPresetFaceDataUrl } from "../lib/presetRender";
 import { normalizeToDisplaySquare } from "../lib/imageEncode";
@@ -10,7 +10,7 @@ import { BadgePreview } from "./BadgePreview";
 import type { AnimationFrame } from "../types";
 
 export function AnimationEditor() {
-  const { connectionState, brightness, sendAnimation } = useBadge();
+  const { connectionState, brightness, sendAnimation, sendFrame } = useBadge();
   const connected = connectionState === "connected";
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -20,6 +20,9 @@ export function AnimationEditor() {
   const [effectRunning, setEffectRunning] = useState<EffectName | null>(null);
   const [playing, setPlaying] = useState(false);
   const [playIndex, setPlayIndex] = useState(0);
+  const [marqueeText, setMarqueeText] = useState("E36");
+  const [persist, setPersist] = useState(true);
+  const [testingFrameId, setTestingFrameId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!playing || frames.length === 0) return;
@@ -81,7 +84,13 @@ export function AnimationEditor() {
       }
       setEffectRunning(effect);
       try {
-        const generated = await generateEffectFrames(base, effect, 8, 120);
+        const generated = await generateEffectFrames(
+          base,
+          effect,
+          8,
+          120,
+          effect === "marquee" ? { text: marqueeText } : undefined,
+        );
         setFrames((prev) => {
           const room = Math.max(0, MAX_ANIMATION_FRAMES - prev.length);
           return [...prev, ...generated.slice(0, room)];
@@ -90,7 +99,20 @@ export function AnimationEditor() {
         setEffectRunning(null);
       }
     },
-    [effectRunning, frames],
+    [effectRunning, frames, marqueeText],
+  );
+
+  const testFrame = useCallback(
+    async (frame: AnimationFrame) => {
+      if (testingFrameId) return;
+      setTestingFrameId(frame.id);
+      try {
+        await sendFrame(frame.dataUrl, "Live Frame");
+      } finally {
+        setTestingFrameId(null);
+      }
+    },
+    [sendFrame, testingFrameId],
   );
 
   const moveFrame = (index: number, dir: -1 | 1) => {
@@ -191,9 +213,22 @@ export function AnimationEditor() {
               </button>
             ))}
           </div>
+          <div className="mt-3 flex items-center gap-2">
+            <label htmlFor="marquee-text" className="shrink-0 text-[11px] text-zinc-500">
+              Marquee text:
+            </label>
+            <input
+              id="marquee-text"
+              value={marqueeText}
+              maxLength={24}
+              onChange={(e) => setMarqueeText(e.target.value)}
+              placeholder="E36 M3"
+              className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 font-display text-xs font-bold uppercase tracking-wide text-white outline-none transition placeholder:text-zinc-700 focus:border-zinc-600"
+            />
+          </div>
           <p className="mt-3 text-[11px] text-zinc-600">
-            Generates an 8-frame looping sequence from the current face — blink, breathe, wipe, or spin. Perfect for
-            boot animations.
+            Generates an 8-frame looping sequence from the current face — blink, breathe, fade, strobe, rainbow, wipe,
+            scroll, or spin. Marquee replaces the face with scrolling text. Perfect for boot animations.
           </p>
         </div>
 
@@ -244,6 +279,18 @@ export function AnimationEditor() {
                       <ArrowDown className="h-3.5 w-3.5" />
                     </button>
                   </div>
+                  <button
+                    onClick={() => void testFrame(frame)}
+                    disabled={!connected || testingFrameId !== null}
+                    title="Send this frame to the badge as a live preview"
+                    className="rounded-md p-1.5 text-sky-400/80 transition hover:bg-sky-950/40 hover:text-sky-300 disabled:opacity-40"
+                  >
+                    {testingFrameId === frame.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Zap className="h-4 w-4" />
+                    )}
+                  </button>
                   <button
                     onClick={() => removeFrame(frame.id)}
                     className="rounded-md p-1.5 text-red-400/70 hover:bg-red-950/50 hover:text-red-300"
@@ -300,9 +347,21 @@ export function AnimationEditor() {
             </div>
           )}
         </div>
+        <label className="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
+          <span className="text-xs text-zinc-400">
+            Persist on badge
+            <span className="block text-[10px] text-zinc-600">survives reboot (WiFi only)</span>
+          </span>
+          <input
+            type="checkbox"
+            checked={persist}
+            onChange={(e) => setPersist(e.target.checked)}
+            className="h-4 w-4 accent-blue-600"
+          />
+        </label>
         <button
           disabled={!connected || frames.length === 0}
-          onClick={() => sendAnimation(frames, name)}
+          onClick={() => sendAnimation(frames, name, { persist })}
           className="btn-primary w-full"
         >
           <Send className="h-4 w-4" />

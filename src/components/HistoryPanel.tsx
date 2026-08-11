@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CheckCircle2, Clock3, Film, Image as ImageIcon, SunMedium, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock3, Film, Image as ImageIcon, SunMedium, Trash2, XCircle, Zap } from "lucide-react";
 import { useBadge } from "../context/BadgeContext";
 import { formatBytes } from "../lib/imageEncode";
 import { cn } from "../utils/cn";
@@ -9,6 +9,7 @@ const TYPE_META: Record<TransferRecord["type"], { label: string; icon: typeof Im
   face: { label: "Face", icon: ImageIcon },
   animation: { label: "Animation", icon: Film },
   brightness: { label: "Brightness", icon: SunMedium },
+  frame: { label: "Live Frame", icon: Zap },
 };
 
 type FilterType = "all" | TransferRecord["type"];
@@ -27,6 +28,7 @@ export function HistoryPanel() {
     { id: "face", label: "Faces" },
     { id: "animation", label: "Animations" },
     { id: "brightness", label: "Brightness" },
+    { id: "frame", label: "Live Frames" },
   ];
 
   return (

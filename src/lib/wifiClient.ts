@@ -1,6 +1,6 @@
 import { encodeToRgb565 } from "./imageEncode";
 import { DISPLAY_HEIGHT, DISPLAY_WIDTH } from "./protocol";
-import type { AnimationFrame, BadgeInfo, LogLevel } from "../types";
+import type { AnimationFrame, BadgeConfig, BadgeInfo, LogLevel } from "../types";
 
 export type WifiLogger = (level: LogLevel, message: string, detail?: string) => void;
 
@@ -93,6 +93,23 @@ export class BadgeWifiClient {
     this.onLog("info", "Encoded payload ready", `${payload.byteLength} bytes`);
     await this.uploadBlob("/face", payload, onProgress);
     return payload.byteLength;
+  }
+
+  async sendFrame(dataUrl: string, onProgress: ProgressHandler): Promise<number> {
+    this.onLog("info", "Encoding live frame to RGB565…");
+    const payload = await encodeToRgb565(dataUrl);
+    this.onLog("info", "Encoded live frame ready", `${payload.byteLength} bytes`);
+    await this.uploadBlob("/frame", payload, onProgress);
+    return payload.byteLength;
+  }
+
+  async saveConfig(config: BadgeConfig): Promise<void> {
+    await this.fetchJson("/config", {
+      method: "POST",
+      body: JSON.stringify(config),
+      timeoutMs: 6000,
+    });
+    this.onLog("success", "Saved persistent settings on badge", JSON.stringify(config));
   }
 
   async sendAnimation(frames: AnimationFrame[], onProgress: ProgressHandler): Promise<number> {

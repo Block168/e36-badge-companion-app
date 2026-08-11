@@ -5,7 +5,7 @@ import {
   E36_CHARACTERISTICS,
   E36_SERVICE_UUID,
 } from "./protocol";
-import type { AnimationFrame, BadgeInfo, CharacteristicSnapshot, LogLevel } from "../types";
+import type { AnimationFrame, BadgeConfig, BadgeInfo, CharacteristicSnapshot, LogLevel } from "../types";
 
 export type BleLogger = (level: LogLevel, message: string, detail?: string) => void;
 
@@ -229,6 +229,18 @@ export class BadgeBleClient {
     this.onLog("info", `Encoded payload ready`, `${payload.byteLength} bytes`);
     await this.transferChunks(payload, E36_CHARACTERISTICS.FACE_TRANSFER, onProgress);
     return payload.byteLength;
+  }
+
+  async sendFrame(dataUrl: string, onProgress: ProgressHandler): Promise<number> {
+    this.onLog("info", "Encoding live frame to RGB565…");
+    const payload = await encodeToRgb565(dataUrl);
+    this.onLog("info", "Encoded live frame ready", `${payload.byteLength} bytes`);
+    await this.transferChunks(payload, E36_CHARACTERISTICS.FACE_TRANSFER, onProgress, "live frame");
+    return payload.byteLength;
+  }
+
+  async saveConfig(_config: BadgeConfig): Promise<void> {
+    // Persistent settings are handled by the WiFi firmware; BLE has no such channel.
   }
 
   async sendAnimation(frames: AnimationFrame[], onProgress: ProgressHandler): Promise<number> {

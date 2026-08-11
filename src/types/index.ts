@@ -39,13 +39,19 @@ export interface AnimationFrame {
 
 export interface TransferRecord {
   id: string;
-  type: "face" | "animation" | "brightness";
+  type: "face" | "animation" | "brightness" | "frame";
   name: string;
   timestamp: number;
   sizeBytes: number;
   durationMs: number;
   success: boolean;
   detail?: string;
+}
+
+/** Settings the app can persist on the badge's flash storage (WiFi transport). */
+export interface BadgeConfig {
+  active?: "face" | "animation";
+  brightness?: number;
 }
 
 export type LogLevel = "info" | "success" | "warn" | "error" | "gatt";

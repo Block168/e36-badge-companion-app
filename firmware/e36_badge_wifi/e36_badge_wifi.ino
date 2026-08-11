@@ -16,16 +16,27 @@
  *   bottom of this file to push pixels to your display driver:
  *     - onFaceUploaded(path, bytes)      -> show / store the face
  *     - onAnimationUploaded(path, bytes) -> 6-byte header, then raw frames
+ *     - onLiveFrame(path, bytes)         -> flash a single frame (live test mode)
+ *     - onConfigLoaded(active, brightness) -> called at boot with persisted state
  *     - applyBrightness(value)           -> drive the backlight
  *     - readBatteryPercent()             -> read the PMIC/ADC
+ *
+ * PERSISTENCE:
+ *   Brightness is saved to NVS (Preferences). The active item (face vs
+ *   animation) is saved to /config.json on LittleFS and restored at boot, so
+ *   the badge remembers its look across power cycles.
  *
  * API:
  *   GET  /api/info                        -> device info JSON
  *   POST /api/brightness  {"value": 0..100}
  *   POST /api/face        multipart file field "file" (raw RGB565)
  *   POST /api/animation   multipart file field "file" (header + RGB565 frames)
+ *   POST /api/frame       multipart file field "file" (raw RGB565, live test)
  *   GET  /api/faces/latest                -> last uploaded raw face
  *   GET  /api/anims/latest                -> last uploaded raw animation
+ *   GET  /api/frame/latest                -> last live-tested raw frame
+ *   GET  /api/config                      -> {"active":"...","brightness":..}
+ *   POST /api/config      {"active":"face"|"animation"}
  *
  * Board: ESP32 Dev Module (Arduino core 2.x, Partition Scheme "Huge APP" if
  * you embed the web app). No external libraries required.
@@ -36,6 +47,7 @@
 #include <DNSServer.h>
 #include <WebServer.h>
 #include <LittleFS.h>
+#include <Preferences.h>
 
 // ---------------------------------------------------------------- config ---
 
@@ -51,14 +63,18 @@
 
 #define PATH_FACE     "/faces/latest.rgb565"
 #define PATH_ANIM     "/anims/latest.anim"
+#define PATH_FRAME    "/frames/live.rgb565"
+#define PATH_CONFIG   "/config.json"
 
 // ------------------------------------------------------------------ state ---
 
 WebServer server(80);
 DNSServer dnsServer;
+Preferences prefs;
 
 static uint8_t  g_brightness = 70;
 static int16_t  g_battery    = 86;   // overridden by readBatteryPercent()
+static String   g_active     = "face";   // "face" | "animation" — shown at boot
 
 static File     g_upFile;
 static String   g_upTarget;
@@ -125,6 +141,37 @@ static String jsonEscape(String s) {
   return s;
 }
 
+// ------------------------------------------------------- persistence helpers
+
+static String parseActive(String body) {
+  int i = body.indexOf("\"active\"");
+  if (i < 0) return "";
+  int c = body.indexOf(':', i);
+  int q1 = body.indexOf('"', c);
+  int q2 = body.indexOf('"', q1 + 1);
+  if (q1 < 0 || q2 < 0) return "";
+  return body.substring(q1 + 1, q2);
+}
+
+static void saveActive(const String &active) {
+  if (active != "face" && active != "animation") return;
+  g_active = active;
+  File f = LittleFS.open(PATH_CONFIG, FILE_WRITE);
+  if (f) {
+    f.print("{\"active\":\""); f.print(active); f.print("\"}");
+    f.close();
+    Serial.printf("[config] active -> %s\n", active.c_str());
+  }
+}
+
+static String loadActive() {
+  String s;
+  File f = LittleFS.open(PATH_CONFIG, "r");
+  if (f) { s = f.readString(); f.close(); }
+  String active = parseActive(s);
+  return (active == "face" || active == "animation") ? active : "face";
+}
+
 // ------------------------------------------------------------- hooks ---------
 // Override these to wire up your display / backlight / battery hardware.
 
@@ -134,9 +181,18 @@ static void applyBrightness(uint8_t value) {                   // TODO: PWM / SP
   Serial.printf("[brightness] backlight -> %u%%\n", value);
 }
 
+static void onConfigLoaded(const String &active, uint8_t brightness) { // TODO: apply saved state
+  Serial.printf("[config] boot: active=%s brightness=%u%%\n", active.c_str(), brightness);
+}
+
 static void onFaceUploaded(const char *path, size_t bytes) {   // TODO: push to display
   Serial.printf("[face] uploaded %u bytes from %s\n", (unsigned)bytes, path);
   Serial.println("[face] open the file in chunks and draw RGB565 to your display");
+}
+
+static void onLiveFrame(const char *path, size_t bytes) {      // TODO: flash to display
+  Serial.printf("[frame] live test: %u bytes from %s\n", (unsigned)bytes, path);
+  Serial.println("[frame] open the file and draw RGB565 to your display immediately");
 }
 
 static void onAnimationUploaded(const char *path, size_t bytes) { // TODO: play frames
@@ -193,13 +249,34 @@ static void handleBrightness() {
   if (value < 0 || value > 100) { sendJsonError("value must be 0..100"); return; }
 
   g_brightness = (uint8_t)value;
+  prefs.putUChar("brightness", g_brightness);
   applyBrightness(g_brightness);
   sendJson(String("{\"ok\":true,\"value\":") + value + "}");
 }
 
+static void handleConfig() {
+  if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
+  if (server.method() == HTTP_GET) {
+    sendJson(String("{\"ok\":true,\"active\":\"") + g_active +
+             "\",\"brightness\":" + g_brightness + "}");
+    return;
+  }
+  String body = server.arg("plain");
+  String active = parseActive(body);
+  if (active != "face" && active != "animation") {
+    sendJsonError("active must be face or animation");
+    return;
+  }
+  saveActive(active);
+  sendJson(String("{\"ok\":true,\"active\":\"") + active +
+           "\",\"brightness\":" + g_brightness + "}");
+}
+
 static void handleUpload(HTTPUpload &upload) {
   if (upload.status == UPLOAD_FILE_START) {
-    g_upTarget = (upload.uri == "/api/animation") ? PATH_ANIM : PATH_FACE;
+    if (upload.uri == "/api/animation") g_upTarget = PATH_ANIM;
+    else if (upload.uri == "/api/frame") g_upTarget = PATH_FRAME;
+    else g_upTarget = PATH_FACE;
     g_upBytes = 0;
     g_upOk = false;
     if (g_upFile) g_upFile.close();
@@ -217,8 +294,15 @@ static void handleUpload(HTTPUpload &upload) {
     g_upOk = (g_upBytes > 0);
     Serial.printf("[upload] complete: %s, %u bytes\n", g_upTarget.c_str(), (unsigned)g_upBytes);
     if (g_upOk) {
-      if (g_upTarget == PATH_ANIM) onAnimationUploaded(PATH_ANIM, g_upBytes);
-      else onFaceUploaded(PATH_FACE, g_upBytes);
+      if (g_upTarget == PATH_ANIM) {
+        onAnimationUploaded(PATH_ANIM, g_upBytes);
+        saveActive("animation");
+      } else if (g_upTarget == PATH_FRAME) {
+        onLiveFrame(PATH_FRAME, g_upBytes);
+      } else {
+        onFaceUploaded(PATH_FACE, g_upBytes);
+        saveActive("face");
+      }
     }
   } else if (upload.status == UPLOAD_FILE_ABORTED) {
     if (g_upFile) g_upFile.close();
@@ -262,6 +346,13 @@ void setup() {
   LittleFS.begin(true);
   LittleFS.mkdir("/faces");
   LittleFS.mkdir("/anims");
+  LittleFS.mkdir("/frames");
+
+  prefs.begin("badge", false);
+  g_brightness = prefs.getUChar("brightness", 70);
+  applyBrightness(g_brightness);
+  g_active = loadActive();
+  onConfigLoaded(g_active, g_brightness);
 
   WiFi.mode(WIFI_AP);
   bool ok = WiFi.softAP(AP_SSID, AP_PASSWORD, AP_CHANNEL);
@@ -289,8 +380,14 @@ void setup() {
   server.on("/api/face", HTTP_OPTIONS, []() { server.send(204); });
   server.on("/api/animation", HTTP_POST, handleAnimDone, handleUpload);
   server.on("/api/animation", HTTP_OPTIONS, []() { server.send(204); });
+  server.on("/api/frame", HTTP_POST, handleFaceDone, handleUpload);
+  server.on("/api/frame", HTTP_OPTIONS, []() { server.send(204); });
   server.on("/api/faces/latest", HTTP_GET, []() { handleLatest(PATH_FACE, "application/octet-stream"); });
   server.on("/api/anims/latest", HTTP_GET, []() { handleLatest(PATH_ANIM, "application/octet-stream"); });
+  server.on("/api/frame/latest", HTTP_GET, []() { handleLatest(PATH_FRAME, "application/octet-stream"); });
+  server.on("/api/config", HTTP_GET, handleConfig);
+  server.on("/api/config", HTTP_POST, handleConfig);
+  server.on("/api/config", HTTP_OPTIONS, []() { server.send(204); });
 
   server.onNotFound([]() {
     if (server.uri().startsWith("/api/")) {
