@@ -4,3 +4,8 @@ dist/
 .env.local
 .DS_Store
 *.log
+
+.vercel
+
+# Generated firmware asset (from dist/index.html via embed_webapp.ps1)
+firmware/e36_badge_wifi/web_index_html.h

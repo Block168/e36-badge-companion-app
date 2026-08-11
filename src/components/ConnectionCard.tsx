@@ -1,4 +1,4 @@
-import { BatteryMedium, Bluetooth, BluetoothConnected, Cpu, Gauge, HardDrive, PlugZap, Sparkles } from "lucide-react";
+import { BatteryMedium, Bluetooth, BluetoothConnected, Cpu, Gauge, HardDrive, PlugZap, Sparkles, Wifi, WifiOff } from "lucide-react";
 import { useBadge } from "../context/BadgeContext";
 import { BadgePreview } from "./BadgePreview";
 import { LiveGauge } from "./LiveGauge";
@@ -27,8 +27,18 @@ function BatteryMeter({ percent }: { percent: number }) {
 }
 
 export function ConnectionCard() {
-  const { connectionState, isSupported, isSimulated, badgeInfo, brightness, connect, connectDemo, disconnect } =
-    useBadge();
+  const {
+    connectionState,
+    bleSupported,
+    transport,
+    isSimulated,
+    badgeInfo,
+    brightness,
+    connect,
+    connectWifi,
+    connectDemo,
+    disconnect,
+  } = useBadge();
   const connected = connectionState === "connected";
   const connecting = connectionState === "connecting";
   const { kmh, active, simulated, error } = useGeoSpeed(600, connected);
@@ -46,7 +56,7 @@ export function ConnectionCard() {
             connected={connected}
             scanning={!connected}
             size={190}
-            label={connected ? "Badge display live" : connecting ? "Searching for devices…" : "Waiting to connect"}
+            label={connected ? "Badge display live" : connecting ? "Linking to badge…" : "Waiting to connect"}
           />
           {connected && (
             <div className="hidden w-full items-center gap-3 rounded-xl border border-zinc-800/70 bg-black/40 px-4 py-3 lg:flex">
@@ -78,16 +88,40 @@ export function ConnectionCard() {
               )}
             >
               {connected ? (
-                <BluetoothConnected className="h-3.5 w-3.5" />
+                transport === "wifi" ? (
+                  <Wifi className="h-3.5 w-3.5" />
+                ) : transport === "ble" ? (
+                  <BluetoothConnected className="h-3.5 w-3.5" />
+                ) : (
+                  <PlugZap className="h-3.5 w-3.5" />
+                )
               ) : connecting ? (
                 <span className="relative flex h-3.5 w-3.5">
                   <span className="absolute inset-0 animate-ping rounded-full bg-blue-500/60" />
-                  <Bluetooth className="relative h-3.5 w-3.5" />
+                  {transport === "wifi" ? (
+                    <Wifi className="relative h-3.5 w-3.5" />
+                  ) : transport === "ble" ? (
+                    <Bluetooth className="relative h-3.5 w-3.5" />
+                  ) : (
+                    <Sparkles className="relative h-3.5 w-3.5" />
+                  )}
                 </span>
               ) : (
-                <Bluetooth className="h-3.5 w-3.5" />
+                <WifiOff className="h-3.5 w-3.5" />
               )}
-              {connected ? "Connected" : connecting ? "Scanning…" : "Pit Lane"}
+              {connected
+                ? transport === "wifi"
+                  ? "WiFi Link"
+                  : transport === "ble"
+                    ? "Bluetooth"
+                    : "Demo"
+                : connecting
+                  ? transport === "wifi"
+                    ? "Linking…"
+                    : transport === "ble"
+                      ? "Scanning…"
+                      : "Starting…"
+                  : "Pit Lane"}
             </span>
             {isSimulated && connected && (
               <span className="inline-flex items-center gap-1 rounded-full border border-violet-500/40 bg-violet-500/10 px-3 py-1 font-display text-[11px] font-bold uppercase tracking-widest text-violet-300">
@@ -114,7 +148,7 @@ export function ConnectionCard() {
             <p className="mt-1.5 max-w-lg text-sm text-zinc-400">
               {connected
                 ? "Your E36 badge is linked and ready for customization. Faces, brightness, and boot animations are a tap away."
-                : "Connect via Bluetooth to manage faces, brightness, and animations — or spin up Demo Mode to try everything now."}
+                : "Join the E36-Badge WiFi network and the companion app opens automatically — or link over Bluetooth on Android."}
             </p>
           </div>
 
@@ -162,10 +196,16 @@ export function ConnectionCard() {
           <div className="flex flex-wrap gap-3 pt-1">
             {!connected && (
               <>
-                <button onClick={connect} disabled={connecting} className="btn-primary">
-                  <PlugZap className="h-4 w-4" />
-                  {isSupported ? "Connect Badge" : "Connect (unsupported)"}
+                <button onClick={connectWifi} disabled={connecting} className="btn-primary">
+                  <Wifi className="h-4 w-4" />
+                  Connect via WiFi
                 </button>
+                {bleSupported && (
+                  <button onClick={connect} disabled={connecting} className="btn-ghost">
+                    <Bluetooth className="h-4 w-4" />
+                    Bluetooth
+                  </button>
+                )}
                 <button onClick={connectDemo} disabled={connecting} className="btn-ghost">
                   <Sparkles className="h-4 w-4" />
                   Try Demo Mode
@@ -179,11 +219,26 @@ export function ConnectionCard() {
             )}
           </div>
 
-          {!isSupported && (
-            <p className="max-w-md text-xs text-amber-400/90">
-              Web Bluetooth isn't available in this browser. Use Chrome, Edge, or Opera on desktop/Android for real
-              hardware — or explore every feature instantly with Demo Mode.
-            </p>
+          {!connected && !connecting && (
+            <div className="max-w-lg space-y-2">
+              <p className="text-xs text-zinc-400">
+                <span className="font-semibold text-zinc-200">WiFi:</span> join the{" "}
+                <span className="font-mono text-sky-300">E36-Badge</span> network from your phone's settings, then tap{" "}
+                <span className="text-white">Connect via WiFi</span>. The app opens automatically from the badge.
+              </p>
+              {bleSupported && (
+                <p className="text-xs text-zinc-500">
+                  <span className="font-semibold text-zinc-300">Bluetooth:</span> available on Android and desktop Chrome —
+                  no WiFi network needed.
+                </p>
+              )}
+              {!bleSupported && (
+                <p className="text-xs text-zinc-500">
+                  <span className="font-semibold text-zinc-300">Bluetooth:</span> not available on this device (iOS
+                  Safari doesn't support Web Bluetooth) — WiFi is the way in.
+                </p>
+              )}
+            </div>
           )}
           {error && (
             <p className="max-w-md text-xs text-zinc-500">
