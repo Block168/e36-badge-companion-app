@@ -63,6 +63,24 @@ export class BadgeBleClient {
 
   private simulatedConnected = false;
 
+  // Transfer reliability tuning.
+  private attMtu: number | null = null;
+  private maxOutstandingWrites = 4; // never flood the ATT write queue
+  private chunkRetries = 3;
+  private retryBaseDelayMs = 40;
+  private failedWrites = 0;
+  private simulatedFailureRate = 0; // test hook: inject failures into demo mode
+
+  /** Test/debug hook — randomly fail a chunk's FIRST write (0..1) to exercise retries. */
+  setSimulatedFailureRate(rate: number): void {
+    this.simulatedFailureRate = Math.max(0, Math.min(1, rate));
+  }
+
+  /** Number of write attempts that failed once and were recovered by retry. */
+  get failedWriteCount(): number {
+    return this.failedWrites;
+  }
+
   getCharacteristicSnapshots(): CharacteristicSnapshot[] {
     const labels: [string, string][] = [
       [E36_CHARACTERISTICS.DEVICE_INFO, "Device Info"],
@@ -121,6 +139,22 @@ export class BadgeBleClient {
     this.server = await this.device.gatt!.connect();
     this.onLog("success", "GATT server connected");
 
+    this.onLog("info", "Negotiating ATT MTU…");
+    const gatt = this.device.gatt!;
+    const requestMTU = (gatt as unknown as { requestMTU?: (mtu: number) => Promise<number> }).requestMTU;
+    if (requestMTU) {
+      try {
+        const mtu = await requestMTU(512);
+        if (mtu > 0) this.attMtu = mtu;
+        this.onLog("success", "ATT MTU negotiated", `mtu=${this.attMtu ?? "default"}`);
+      } catch (err) {
+        this.attMtu = null;
+        this.onLog("warn", "MTU negotiation not supported — using default chunk size", String(err));
+      }
+    } else {
+      this.onLog("warn", "MTU negotiation not supported — using default chunk size", "requestMTU unavailable");
+    }
+
     this.onLog("info", `Discovering primary service ${E36_SERVICE_UUID}`);
     this.service = await this.server.getPrimaryService(E36_SERVICE_UUID);
     this.onLog("success", "E36 badge service discovered");
@@ -151,6 +185,8 @@ export class BadgeBleClient {
       await delay(60);
       this.onLog("gatt", `Characteristic ready: ${uuid}`);
     }
+    this.attMtu = 512;
+    this.onLog("success", "ATT MTU negotiated (simulated)", "mtu=512");
     this.simulatedConnected = true;
     return this.readDeviceInfo();
   }
@@ -277,6 +313,24 @@ export class BadgeBleClient {
     return totalBytes;
   }
 
+  private effectiveMtu(): number {
+    if (this.attMtu) return this.attMtu;
+    return BLE_CHUNK_SIZE + 3;
+  }
+
+  /**
+   * Sends a payload to a characteristic with reliable, flow-controlled chunking.
+   *
+   * Reliability strategy:
+   *   - Chunk size is derived from the negotiated ATT MTU (up to ~509 bytes),
+   *     so far fewer writes are needed for the same payload.
+   *   - A bounded sliding window keeps at most `maxOutstandingWrites` writes in
+   *     flight, which respects the OS/controller write queue on phones instead
+   *     of fire-and-forgetting every chunk back-to-back.
+   *   - Every write is retried with exponential backoff, so transient GATT
+   *     errors ("queue full", "operation already in progress") recover instead
+   *     of aborting the whole upload.
+   */
   private async transferChunks(
     payload: Uint8Array,
     characteristicUuid: string,
@@ -284,10 +338,11 @@ export class BadgeBleClient {
     context?: string,
   ): Promise<void> {
     const totalBytes = payload.byteLength;
-    let sentBytes = 0;
-    const chunkCount = Math.ceil(totalBytes / BLE_CHUNK_SIZE);
+    const mtu = this.effectiveMtu();
+    const chunkSize = Math.max(20, mtu - 3);
+    const chunkCount = Math.ceil(totalBytes / chunkSize);
 
-    const ch = this.simulated ? null : this.characteristics.get(characteristicUuid);
+    const ch = this.simulated ? null : (this.characteristics.get(characteristicUuid) ?? null);
     if (!this.simulated && !ch) {
       throw new Error(`Characteristic ${characteristicUuid} not found`);
     }
@@ -295,33 +350,68 @@ export class BadgeBleClient {
     this.onLog(
       "info",
       `Starting chunked transfer${context ? ` (${context})` : ""}`,
-      `${chunkCount} chunks × ${BLE_CHUNK_SIZE}B → ${characteristicUuid}`,
+      `${chunkCount} chunks × ${chunkSize}B (MTU ${mtu}) → ${characteristicUuid}`,
     );
 
-    for (let i = 0; i < chunkCount; i++) {
-      const start = i * BLE_CHUNK_SIZE;
-      const end = Math.min(start + BLE_CHUNK_SIZE, totalBytes);
+    let nextIndex = 0;
+    let sentBytes = 0;
+
+    const writeOne = async (index: number): Promise<void> => {
+      const start = index * chunkSize;
+      const end = Math.min(start + chunkSize, totalBytes);
       const chunk = payload.slice(start, end);
-
-      if (this.simulated) {
-        await delay(CHUNK_DELAY_MS);
-      } else if (ch) {
-        await ch.writeValueWithoutResponse(chunk);
-      }
-
+      await this.writeChunkWithRetry(chunk, ch);
       sentBytes += chunk.byteLength;
-
-      if (i % 8 === 0 || i === chunkCount - 1) {
-        this.onLog("gatt", `Wrote chunk ${i + 1}/${chunkCount}`, `${chunk.byteLength} bytes`);
-      }
-
       onProgress({
         sentBytes,
         totalBytes,
         percent: Math.round((sentBytes / totalBytes) * 100),
       });
-    }
+    };
 
+    const worker = async (): Promise<void> => {
+      for (;;) {
+        const index = nextIndex++;
+        if (index >= chunkCount) return;
+        await writeOne(index);
+      }
+    };
+
+    await Promise.all(Array.from({ length: this.maxOutstandingWrites }, () => worker()));
+
+    if (this.failedWrites > 0) {
+      this.onLog("warn", `Transfer recovered from ${this.failedWrites} failed write(s)`);
+    }
     this.onLog("success", `Transfer complete${context ? ` (${context})` : ""}`, `${totalBytes} bytes`);
+  }
+
+  private async writeChunkWithRetry(
+    chunk: Uint8Array,
+    characteristic: BluetoothRemoteGATTCharacteristic | null,
+  ): Promise<void> {
+    let attempt = 0;
+    let firstAttempt = true;
+    for (;;) {
+      try {
+        if (this.simulated) {
+          const isFirst = firstAttempt;
+          firstAttempt = false;
+          if (isFirst && this.simulatedFailureRate > 0 && Math.random() < this.simulatedFailureRate) {
+            throw new Error("SIMULATED_WRITE_FAILURE");
+          }
+          await delay(CHUNK_DELAY_MS);
+        } else if (characteristic) {
+          await characteristic.writeValueWithoutResponse(new Uint8Array(chunk));
+        }
+        return;
+      } catch (err) {
+        attempt++;
+        if (attempt > this.chunkRetries) throw err;
+        this.failedWrites++;
+        const wait = this.retryBaseDelayMs * 2 ** (attempt - 1);
+        this.onLog("warn", `Write failed (attempt ${attempt}/${this.chunkRetries}), retrying in ${wait}ms`, String(err));
+        await delay(wait);
+      }
+    }
   }
 }

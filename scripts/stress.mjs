@@ -235,6 +235,44 @@ async function scenarioAnimation(browser) {
   await page.close();
 }
 
+async function scenarioRetryRecovery(browser) {
+  log("— BLE WRITE-RETRY RECOVERY (simulated 35% write failure rate) —");
+  const page = await bootPage(browser);
+  makeErrorCatcher(page);
+  await page.goto(URL_, { waitUntil: "load" });
+  await clickByText(page, "Try Demo Mode");
+  await waitForConnected(page);
+  await clickByText(page, "Faces");
+  await waitForText(page, "Send to Badge");
+
+  const client = await page.evaluate(() => {
+    const c = window.__badgeBleClient;
+    return c ? { hasClient: true, failures: c.failedWriteCount } : { hasClient: false };
+  });
+  if (!client.hasClient) fail("retry: debug seam not exposed on window", "window.__badgeBleClient missing");
+  else if (client.failures !== 0) fail("retry: failedWriteCount should start at 0", `got ${client.failures}`);
+  else pass("retry: debug seam exposed, clean baseline");
+
+  await page.evaluate(() => window.__badgeBleClient.setSimulatedFailureRate(0.35));
+  const t0 = Date.now();
+  await clickByText(page, "Send to Badge");
+  await waitForText(page, "uploaded to badge", 120000);
+  const transferMs = Date.now() - t0;
+
+  const after = await page.evaluate(() => ({
+    failures: window.__badgeBleClient.failedWriteCount,
+    rate: window.__badgeBleClient.simulatedFailureRate,
+  }));
+  log("face transfer with injected failures", transferMs, "ms");
+  log("recovered write failures", after.failures, "writes");
+  if (after.failures === 0) fail("retry: expected injected failures to be recovered", "failedWriteCount === 0");
+  else pass("retry: transfer survived injected write failures");
+
+  await page.evaluate(() => window.__badgeBleClient.setSimulatedFailureRate(0));
+  pass("retry: failure injection reset to 0");
+  await page.close();
+}
+
 async function scenarioBrightness(browser) {
   log("— BRIGHTNESS APPLY STRESS (10 rapid apply cycles) —");
   const page = await bootPage(browser);
@@ -360,6 +398,7 @@ try {
   await scenarioEncodeBenchmark(browser);
   await scenarioConnectLoop(browser);
   await scenarioFaceTransfers(browser);
+  await scenarioRetryRecovery(browser);
   await scenarioAnimation(browser);
   await scenarioBrightness(browser);
   await scenarioTabSwitching(browser);

@@ -204,6 +204,11 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
   const connectDemo = useCallback(async () => {
     const client = makeClient("demo") as BadgeBleClient;
     clientRef.current = client;
+    // Debug/test seam: lets a headless probe or the browser console inject
+    // simulated BLE failures and inspect recovery stats.
+    if (typeof window !== "undefined") {
+      (window as unknown as { __badgeBleClient?: BadgeBleClient }).__badgeBleClient = client;
+    }
     setConnectionState("connecting");
     try {
       const info = await client.connectSimulated();
