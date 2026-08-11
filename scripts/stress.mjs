@@ -3,14 +3,54 @@
 //   npm run build && node scripts/stress.mjs
 import { launch } from "puppeteer-core";
 import http from "node:http";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import zlib from "node:zlib";
 
 const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const distDir = fileURLToPath(new URL("../dist/", import.meta.url));
 const PORT = 4187;
 const URL_ = `http://127.0.0.1:${PORT}/`;
+
+// --------------------------------------------------------- minimal test PNG
+// 8×8 solid PNG generated at runtime so the face-upload flow can be exercised
+// end-to-end without committing binary fixtures.
+const crcTable = new Int32Array(256).map((_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c;
+});
+function crc32(buf) {
+  let c = -1;
+  for (let i = 0; i < buf.length; i++) c = crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ -1) >>> 0;
+}
+function makeTestPng(width = 8, height = 8) {
+  const stride = width * 4 + 1;
+  const raw = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const o = y * stride + 1 + x * 4;
+      raw[o] = 220; raw[o + 1] = 40; raw[o + 2] = 60; raw[o + 3] = 255;
+    }
+  }
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const typeBuf = Buffer.from(type, "ascii");
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])));
+    return Buffer.concat([len, typeBuf, data, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; ihdr[9] = 6; // 8-bit RGBA
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", zlib.deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
 
 // ------------------------------------------------------------- static server
 const MIME = {
@@ -235,6 +275,50 @@ async function scenarioAnimation(browser) {
   await page.close();
 }
 
+async function scenarioFaceToAnimationFlow(browser) {
+  log("— FACE-TO-ANIMATION FLOW (upload a face, then reuse it as an animation frame) —");
+  const page = await bootPage(browser);
+  makeErrorCatcher(page);
+  await page.goto(URL_, { waitUntil: "load" });
+  await clickByText(page, "Try Demo Mode");
+  await waitForConnected(page);
+
+  const pngPath = resolve(distDir, "_test-face.png");
+  writeFileSync(pngPath, makeTestPng());
+
+  // 1) Upload the image in the Faces tab.
+  await clickByText(page, "Faces");
+  await page.waitForSelector('input[type="file"]', { timeout: 15000 });
+  const input = await page.$('input[type="file"]');
+  await input.uploadFile(pngPath);
+  await waitForText(page, "Face added", 20000);
+  await waitForText(page, "test-face", 20000);
+  log("face uploaded in Faces tab", "test-face");
+
+  // 2) It must appear as a quick-add in the Animations tab.
+  await clickByText(page, "Animations");
+  await waitForText(page, "saved faces:", 20000);
+  await waitForText(page, "test-face", 20000);
+  log("face listed under quick-add in Animations", "yes");
+
+  // 3) Clicking it must add an animation frame.
+  await page.evaluate(() => {
+    const btn = document.querySelector('[data-testid="animation-saved-face"]');
+    if (!btn) throw new Error("animation-saved-face button not found");
+    btn.click();
+  });
+  await page.waitForFunction(
+    () => {
+      const s = [...document.querySelectorAll("span")].find((x) => x.textContent.includes("/20 frames"));
+      return !!s && /^1\/20 frames/.test(s.textContent.trim());
+    },
+    { timeout: 20000, polling: 100 },
+  );
+  log("frame added from saved face", "yes");
+  pass("flow: uploaded face is reusable as an animation frame");
+  await page.close();
+}
+
 async function scenarioRetryRecovery(browser) {
   log("— BLE WRITE-RETRY RECOVERY (simulated 35% write failure rate) —");
   const page = await bootPage(browser);
@@ -398,6 +482,7 @@ try {
   await scenarioEncodeBenchmark(browser);
   await scenarioConnectLoop(browser);
   await scenarioFaceTransfers(browser);
+  await scenarioFaceToAnimationFlow(browser);
   await scenarioRetryRecovery(browser);
   await scenarioAnimation(browser);
   await scenarioBrightness(browser);

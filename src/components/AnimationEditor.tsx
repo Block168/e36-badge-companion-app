@@ -10,7 +10,7 @@ import { BadgePreview } from "./BadgePreview";
 import type { AnimationFrame } from "../types";
 
 export function AnimationEditor() {
-  const { connectionState, brightness, sendAnimation, sendFrame } = useBadge();
+  const { connectionState, brightness, sendAnimation, sendFrame, customFaces } = useBadge();
   const connected = connectionState === "connected";
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -49,6 +49,13 @@ export function AnimationEditor() {
       const preset = PRESET_FACES.find((p) => p.id === presetId);
       if (!preset) return;
       addFrame({ id: crypto.randomUUID(), dataUrl: renderPresetFaceDataUrl(preset), durationMs: 150 });
+    },
+    [addFrame],
+  );
+
+  const addCustomFrame = useCallback(
+    (face: { id: string; dataUrl: string }) => {
+      addFrame({ id: crypto.randomUUID(), dataUrl: face.dataUrl, durationMs: 150 });
     },
     [addFrame],
   );
@@ -184,6 +191,22 @@ export function AnimationEditor() {
                 {p.name}
               </button>
             ))}
+            {customFaces.length > 0 && (
+              <>
+                <span className="text-xs text-zinc-600">saved faces:</span>
+                {customFaces.slice(0, 8).map((f) => (
+                  <button
+                    key={f.id}
+                    data-testid="animation-saved-face"
+                    onClick={() => addCustomFrame(f)}
+                    disabled={frames.length >= MAX_ANIMATION_FRAMES}
+                    className="rounded-lg border border-m-blue-400/30 bg-zinc-950 px-2.5 py-1 text-[11px] font-medium text-m-blue-300 transition hover:border-m-blue-400 hover:text-m-blue-100 disabled:opacity-40"
+                  >
+                    {f.name}
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         </div>
 
