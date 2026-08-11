@@ -1,7 +1,8 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Gauge, Send, Trash2 } from "lucide-react";
 import { PRESET_FACES } from "../data/presetFaces";
 import { renderPresetFaceDataUrl } from "../lib/presetRender";
+import { cachedLedPreview, requestLedPreview } from "../lib/ledPreview";
 import { useBadge } from "../context/BadgeContext";
 import { BadgePreview } from "./BadgePreview";
 import { FaceUploader } from "./FaceUploader";
@@ -25,6 +26,29 @@ const CATEGORY_FILTERS: { id: CategoryFilter; label: string }[] = [
 
 const LIVE_ITEM: GalleryItem = { kind: "live", id: "live-speed", name: "Live Speed Gauge" };
 
+function useLedPreviewUrl(sourceUrl: string | null, matrix: number, enabled: boolean): string | null {
+  const [result, setResult] = useState<string | null>(null);
+  useEffect(() => {
+    if (!enabled || !sourceUrl) {
+      setResult(null);
+      return;
+    }
+    let cancelled = false;
+    const cached = cachedLedPreview(sourceUrl, matrix);
+    if (cached) {
+      setResult(cached);
+      return;
+    }
+    requestLedPreview(sourceUrl, matrix).then((url) => {
+      if (!cancelled) setResult(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceUrl, matrix, enabled]);
+  return result;
+}
+
 export function FaceGallery() {
   const { connectionState, brightness, customFaces, sendFace, removeCustomFace } = useBadge();
   const { kmh, active, simulated } = useGeoSpeed(450);
@@ -32,6 +56,8 @@ export function FaceGallery() {
 
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [selectedId, setSelectedId] = useState<string>(LIVE_ITEM.id);
+  const [ledMode, setLedMode] = useState(false);
+  const [ledMatrix, setLedMatrix] = useState(64);
 
   const presetItems: GalleryItem[] = useMemo(
     () =>
@@ -58,11 +84,15 @@ export function FaceGallery() {
   const allItems: GalleryItem[] = [LIVE_ITEM, ...customItems, ...filteredPresets];
   const selected = allItems.find((item) => item.id === selectedId) ?? allItems[0] ?? null;
 
+  const staticSource = selected && selected.kind !== "live" ? selected.dataUrl : null;
+  const ledPreview = useLedPreviewUrl(staticSource, ledMatrix, ledMode);
+
   const previewDataUrl = useMemo(() => {
     if (!selected) return null;
     if (selected.kind === "live") return speedGaugeDataUrl(kmh, simulated);
+    if (ledMode) return ledPreview ?? selected.dataUrl;
     return selected.dataUrl;
-  }, [selected, kmh, simulated]);
+  }, [selected, kmh, simulated, ledMode, ledPreview]);
 
   const handleSend = () => {
     if (!connected || !selected) return;
@@ -178,6 +208,33 @@ export function FaceGallery() {
 
       <aside className="card-track h-fit space-y-4 p-5 lg:sticky lg:top-20">
         <h3 className="font-display text-sm font-bold uppercase tracking-widest text-zinc-200">Live Preview</h3>
+        <div className="flex items-center justify-between gap-2">
+          <button
+            onClick={() => setLedMode((v) => !v)}
+            className={cn(
+              "rounded-lg px-3 py-1.5 font-display text-[11px] font-bold uppercase tracking-wider transition",
+              ledMode
+                ? "bg-gradient-to-b from-m-blue-500 to-m-blue-700 text-white shadow"
+                : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
+            )}
+          >
+            LED simulation
+          </button>
+          {ledMode && (
+            <select
+              value={ledMatrix}
+              onChange={(e) => setLedMatrix(Number(e.target.value))}
+              aria-label="LED matrix resolution"
+              className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-display text-[11px] font-bold uppercase tracking-wider text-zinc-300 outline-none transition focus:border-m-blue-500"
+            >
+              {[48, 64, 96].map((n) => (
+                <option key={n} value={n}>
+                  {n}×{n}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         <BadgePreview
           faceUrl={previewDataUrl}
           brightness={connected ? brightness : 45}
@@ -185,6 +242,11 @@ export function FaceGallery() {
           size={440}
           className="mx-auto"
         />
+        {ledMode && selected && selected.kind !== "live" && (
+          <p className="text-center text-[10px] leading-relaxed text-zinc-500">
+            Simulated as a {ledMatrix}×{ledMatrix} LED matrix with RGB565 color — matching the badge's display.
+          </p>
+        )}
         {selected && (
           <div className="text-center">
             <p className="font-display font-bold uppercase tracking-wide text-white">{selected.name}</p>
