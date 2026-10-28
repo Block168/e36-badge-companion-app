@@ -8,16 +8,18 @@ export type TabId = "dashboard" | "faces" | "brightness" | "animation" | "histor
 interface NavItem {
   id: TabId;
   label: string;
+  /** Fits under an icon in the phone tab bar. */
+  short: string;
   icon: typeof PlugZap | typeof ImageIcon | typeof SunMedium | typeof Film | typeof History | typeof Bug;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "dashboard", label: "Garage", icon: PlugZap },
-  { id: "faces", label: "Faces", icon: ImageIcon },
-  { id: "brightness", label: "Brightness", icon: SunMedium },
-  { id: "animation", label: "Animations", icon: Film },
-  { id: "history", label: "History", icon: History },
-  { id: "debug", label: "Debug", icon: Bug },
+  { id: "dashboard", label: "Garage", short: "Garage", icon: PlugZap },
+  { id: "faces", label: "Faces", short: "Faces", icon: ImageIcon },
+  { id: "brightness", label: "Brightness", short: "Glow", icon: SunMedium },
+  { id: "animation", label: "Animations", short: "Anim", icon: Film },
+  { id: "history", label: "History", short: "History", icon: History },
+  { id: "debug", label: "Debug", short: "Debug", icon: Bug },
 ];
 
 export function AppShell({
@@ -45,16 +47,21 @@ export function AppShell({
     };
   }, []);
 
+  const selectTab = (tab: TabId) => {
+    if (tab !== activeTab) window.scrollTo({ top: 0 });
+    onTabChange(tab);
+  };
+
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-40 carbon border-b border-zinc-800/80">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-40 carbon border-b border-zinc-800/80 pt-[var(--safe-top)]">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 sm:py-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="relative">
               <img
                 src="./icons/icon-512.png"
                 alt="Faces logo"
-                className="h-10 w-10 rounded-full object-cover ring-2 ring-m-blue-500/60 shadow-[0_0_18px_rgba(47,111,214,0.4)]"
+                className="h-9 w-9 rounded-full object-cover sm:h-10 sm:w-10 ring-2 ring-m-blue-500/60 shadow-[0_0_18px_rgba(47,111,214,0.4)]"
               />
               <span className="absolute -bottom-0.5 right-0 h-2 w-2 rounded-full bg-m-red-500" />
             </div>
@@ -62,13 +69,13 @@ export function AppShell({
               <p className="font-display text-sm font-extrabold uppercase leading-tight tracking-widest text-white">
                 Faces
               </p>
-              <p className="text-[11px] font-medium leading-tight tracking-wide text-zinc-500">
+              <p className="hidden text-[11px] font-medium leading-tight tracking-wide text-zinc-500 min-[400px]:block">
                 Motorsport LED customization
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span
               className={cn(
                 "hidden items-center gap-1.5 rounded-full border px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-widest sm:inline-flex",
@@ -83,7 +90,7 @@ export function AppShell({
             </span>
             <div
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-display text-[11px] font-bold uppercase tracking-widest",
+                "inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 font-display text-[11px] font-bold uppercase tracking-widest",
                 connected
                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
                   : connecting
@@ -91,22 +98,29 @@ export function AppShell({
                     : "border-zinc-700/60 bg-zinc-900/60 text-zinc-500",
               )}
             >
-              {connected ? <BluetoothConnected className="h-3.5 w-3.5" /> : <Bluetooth className="h-3.5 w-3.5" />}
-              {connected ? (badgeInfo?.name ?? "Connected") : connecting ? "Scanning…" : "No Badge"}
+              {connected ? (
+                <BluetoothConnected className="h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <Bluetooth className="h-3.5 w-3.5 shrink-0" />
+              )}
+              <span className="truncate">
+                {connected ? (badgeInfo?.name ?? "Connected") : connecting ? "Scanning…" : "No Badge"}
+              </span>
             </div>
           </div>
         </div>
 
-        <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-2 pb-2 sm:px-6">
+        <nav className="mx-auto hidden max-w-7xl gap-1 overflow-x-auto px-6 pb-2 md:flex">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => onTabChange(item.id)}
+                onClick={() => selectTab(item.id)}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 font-display text-[12px] font-bold uppercase tracking-wider transition sm:text-[13px]",
+                  "relative flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 font-display text-[13px] font-bold uppercase tracking-wider transition",
                   active
                     ? "bg-gradient-to-b from-m-blue-500 to-m-blue-700 text-white shadow-lg shadow-m-blue-900/40"
                     : "text-zinc-500 hover:bg-zinc-900/70 hover:text-zinc-200",
@@ -124,11 +138,48 @@ export function AppShell({
         <div className="m-stripe h-[3px] w-full opacity-80" />
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      <main className="mx-auto max-w-7xl px-4 pb-[calc(var(--tabbar-h)+var(--safe-bottom)+24px)] pt-4 sm:px-6 sm:pt-8 md:pb-8">
+        {children}
+      </main>
 
-      <footer className="border-t border-zinc-800/80 py-6 text-center text-xs text-zinc-600">
+      <footer className="hidden border-t border-zinc-800/80 py-6 text-center text-xs text-zinc-600 md:block">
         Faces · Forged in the garage — works best in Chrome, Edge, or Opera with Web Bluetooth enabled.
       </footer>
+
+      <nav
+        aria-label="Sections"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-800/80 bg-carbon-950/95 pb-[var(--safe-bottom)] backdrop-blur-xl md:hidden"
+      >
+        <div className="m-stripe h-[2px] w-full opacity-70" />
+        <div className="grid h-[var(--tabbar-h)] grid-cols-6">
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const active = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => selectTab(item.id)}
+                aria-current={active ? "page" : undefined}
+                aria-label={item.label}
+                className={cn(
+                  "relative flex flex-col items-center justify-center gap-1 transition active:scale-95",
+                  active ? "text-white" : "text-zinc-500 active:text-zinc-300",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-8 w-12 items-center justify-center rounded-full transition",
+                    active && "bg-gradient-to-b from-m-blue-500 to-m-blue-700 shadow-lg shadow-m-blue-900/50",
+                  )}
+                >
+                  <Icon className="h-[18px] w-[18px]" />
+                </span>
+                <span className="font-display text-[9px] font-bold uppercase tracking-wider">{item.short}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }

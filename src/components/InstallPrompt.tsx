@@ -74,7 +74,7 @@ export function InstallPrompt({ className }: { className?: string }) {
         </div>
         <button
           onClick={() => setDismissed(true)}
-          className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+          className="-m-1.5 rounded-md p-2.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
           aria-label="Dismiss"
         >
           <X className="h-4 w-4" />
@@ -82,7 +82,7 @@ export function InstallPrompt({ className }: { className?: string }) {
       </div>
 
       {deferred ? (
-        <button onClick={handleInstall} disabled={installing} className="btn-primary mt-4 w-full">
+        <button onClick={handleInstall} disabled={installing} className="btn-primary mt-4 min-h-12 w-full sm:min-h-0">
           <Download className="h-4 w-4" />
           {installing ? "Installing…" : "Add to Home Screen"}
         </button>

@@ -40,10 +40,10 @@ export function BadgePreview({
   const filter = `brightness(${Math.max(0.08, brightness / 100)}) saturate(${0.7 + brightness / 200})`;
 
   return (
-    <div className={cn("flex flex-col items-center gap-3", className)}>
+    <div className={cn("flex max-w-full flex-col items-center gap-3", className)}>
       <div
         className="carbon relative rounded-full border-[6px] border-zinc-700 bg-black p-3 shadow-[0_0_0_2px_rgba(255,255,255,0.05),0_0_24px_rgba(47,111,214,0.25),0_20px_50px_-15px_rgba(0,0,0,0.8)]"
-        style={{ width: size, height: size }}
+        style={{ width: size, maxWidth: "100%", aspectRatio: "1 / 1" }}
       >
         <div className="absolute left-1/2 top-1.5 h-1.5 w-10 -translate-x-1/2 rounded-full bg-zinc-600" />
         <div className="relative h-full w-full overflow-hidden rounded-full bg-black ring-1 ring-white/10">

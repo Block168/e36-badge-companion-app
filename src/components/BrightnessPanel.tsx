@@ -21,8 +21,8 @@ export function BrightnessPanel() {
   const presets = [10, 30, 50, 75, 100];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr,300px]">
-      <div className="card-track p-6 sm:p-8">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="card-track p-5 sm:p-8">
         <div className="flex items-center gap-2">
           <Sun className="h-5 w-5 text-amber-400" />
           <h3 className="font-display text-lg font-bold uppercase tracking-widest text-white">
@@ -33,7 +33,7 @@ export function BrightnessPanel() {
           Fine-tune your badge's display intensity. Changes are written live to the brightness characteristic.
         </p>
 
-        <div className="mt-8 flex items-center gap-4">
+        <div className="mt-6 flex items-center gap-3 sm:mt-8 sm:gap-4">
           <Moon className="h-5 w-5 shrink-0 text-zinc-500" />
           <input
             type="range"
@@ -46,6 +46,7 @@ export function BrightnessPanel() {
               setBrightness(v);
               setDirty(true);
             }}
+            aria-label="Brightness"
             className="slider-track"
             style={{ ["--fill" as string]: `${localValue}%` }}
           />
@@ -57,7 +58,7 @@ export function BrightnessPanel() {
             {String(localValue).padStart(3, "0")}
             <span className="ml-1 text-sm font-bold text-zinc-500">%</span>
           </span>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid w-full grid-cols-5 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             {presets.map((p) => (
               <button
                 key={p}
@@ -66,7 +67,11 @@ export function BrightnessPanel() {
                   setBrightness(p);
                   setDirty(true);
                 }}
-                className={cn("chip border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800", localValue === p && "border-m-blue-500 text-m-blue-300")}
+                aria-pressed={localValue === p}
+                className={cn(
+                  "chip min-h-11 justify-center border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800 active:scale-[0.97] sm:min-h-0",
+                  localValue === p && "border-m-blue-500 text-m-blue-300",
+                )}
               >
                 {p}%
               </button>
@@ -74,14 +79,14 @@ export function BrightnessPanel() {
           </div>
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div className="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <button
             disabled={!connected || !dirty}
             onClick={async () => {
               await commitBrightness(localValue);
               setDirty(false);
             }}
-            className="btn-primary"
+            className="btn-primary min-h-12 sm:min-h-0"
           >
             <Send className="h-4 w-4" />
             Apply to Badge
@@ -94,11 +99,17 @@ export function BrightnessPanel() {
         </div>
       </div>
 
-      <div className="card-track flex flex-col items-center justify-center gap-4 p-6">
+      <div className="card-track order-first flex flex-col items-center justify-center gap-4 p-4 sm:p-6 lg:order-none">
         <h3 className="self-start font-display text-sm font-bold uppercase tracking-widest text-zinc-200">
           Live Preview
         </h3>
-        <BadgePreview faceUrl={previewFace} brightness={localValue} connected={connected} size={200} />
+        <BadgePreview
+          faceUrl={previewFace}
+          brightness={localValue}
+          connected={connected}
+          size={200}
+          className="w-full max-w-[160px] sm:max-w-none"
+        />
         <p className="text-xs text-zinc-500">
           Roundel Glow <span className="font-display font-bold text-zinc-300">{localValue}%</span>
         </p>

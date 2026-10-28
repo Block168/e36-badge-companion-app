@@ -56,7 +56,7 @@ export function FaceUploader() {
         if (file) void handleFile(file);
       }}
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-8 text-center transition",
+        "flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-4 py-6 text-center transition sm:px-6 sm:py-8",
         dragOver ? "border-m-blue-500 bg-m-blue-500/10" : "border-zinc-700 bg-zinc-950/40",
       )}
     >
@@ -66,15 +66,16 @@ export function FaceUploader() {
         <UploadCloud className="h-8 w-8 text-zinc-500" />
       )}
       <div>
-        <p className="text-sm font-medium text-zinc-300">Drag & drop an image here</p>
-        <p className="text-xs text-zinc-500">or click below to browse your files</p>
+        <p className="hidden text-sm font-medium text-zinc-300 [@media(hover:hover)]:block">Drag & drop an image here</p>
+        <p className="hidden text-xs text-zinc-500 [@media(hover:hover)]:block">or click below to browse your files</p>
+        <p className="text-sm font-medium text-zinc-300 [@media(hover:hover)]:hidden">Pick a photo or take one</p>
       </div>
       <button
         onClick={() => inputRef.current?.click()}
         disabled={processing}
-        className="btn-ghost !px-3 !py-1.5 !text-xs"
+        className="btn-ghost min-h-11 w-full max-w-xs sm:min-h-0 sm:w-auto sm:!px-3 sm:!py-1.5 sm:!text-xs"
       >
-        <ImagePlus className="h-3.5 w-3.5" />
+        <ImagePlus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
         Choose Image
       </button>
       <input

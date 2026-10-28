@@ -32,7 +32,7 @@ export function HistoryPanel() {
   ];
 
   return (
-    <div className="card-track p-5 sm:p-6">
+    <div className="card-track p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="font-display text-lg font-bold uppercase tracking-widest text-white">Transfer History</h3>
@@ -41,23 +41,19 @@ export function HistoryPanel() {
         <button
           onClick={clearHistory}
           disabled={history.length === 0}
-          className="chip border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-red-800 hover:text-red-300 disabled:opacity-40"
+          className="chip min-h-10 border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-red-800 hover:text-red-300 disabled:opacity-40 sm:min-h-0"
         >
           <Trash2 className="h-3.5 w-3.5" /> Clear
         </button>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 scroll-strip">
         {filters.map((f) => (
           <button
             key={f.id}
             onClick={() => setFilter(f.id)}
-            className={cn(
-              "rounded-lg px-3 py-1.5 font-display text-[11px] font-bold uppercase tracking-wider transition",
-              filter === f.id
-                ? "bg-gradient-to-b from-m-blue-500 to-m-blue-700 text-white shadow"
-                : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800",
-            )}
+            aria-pressed={filter === f.id}
+            className={cn("pill", filter === f.id ? "pill-on" : "pill-off")}
           >
             {f.label}
           </button>
@@ -90,7 +86,13 @@ export function HistoryPanel() {
                   <p className="truncate text-sm font-medium text-zinc-200">{record.name}</p>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-zinc-500">
                     <span className="inline-flex items-center gap-1">
-                      <Clock3 className="h-3 w-3" /> {new Date(record.timestamp).toLocaleString()}
+                      <Clock3 className="h-3 w-3" />{" "}
+                      {new Date(record.timestamp).toLocaleString([], {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </span>
                     <span>{meta.label}</span>
                     {record.sizeBytes > 0 && <span>{formatBytes(record.sizeBytes)}</span>}

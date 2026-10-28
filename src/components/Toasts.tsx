@@ -12,7 +12,10 @@ export function Toasts() {
   const { toasts, dismissToast } = useBadge();
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-4 z-[100] flex flex-col items-center gap-2 px-4 sm:items-end sm:right-4 sm:left-auto">
+    <div
+      aria-live="polite"
+      className="pointer-events-none fixed inset-x-0 top-[calc(var(--safe-top)+8px)] z-[100] flex flex-col items-center gap-2 px-3 sm:left-auto sm:right-4 sm:top-4 sm:items-end"
+    >
       {toasts.map((toast) => {
         const Icon = ICONS[toast.kind];
         return (
@@ -29,7 +32,7 @@ export function Toasts() {
             <p className="flex-1 text-sm leading-snug">{toast.message}</p>
             <button
               onClick={() => dismissToast(toast.id)}
-              className="rounded-md p-0.5 text-white/50 transition hover:bg-white/10 hover:text-white"
+              className="-m-2 rounded-md p-2 text-white/50 transition hover:bg-white/10 hover:text-white"
               aria-label="Dismiss"
             >
               <X className="h-4 w-4" />

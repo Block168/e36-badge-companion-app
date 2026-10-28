@@ -62,8 +62,17 @@
 }
 
 @layer base {
+  :root {
+    /* Height of the phone bottom tab bar, excluding the home-indicator inset. */
+    --tabbar-h: 64px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
   html {
     -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -72,6 +81,38 @@
       radial-gradient(1100px 500px at 50% -10%, rgba(47, 111, 214, 0.14), transparent 60%),
       radial-gradient(900px 500px at 100% 110%, rgba(232, 68, 62, 0.07), transparent 55%);
     background-attachment: fixed;
+    overscroll-behavior-y: none;
+  }
+
+  /* Kill double-tap zoom delay on every control. */
+  button,
+  a,
+  label,
+  select,
+  input,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-m-blue-400);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 1023px) {
+    /* Fixed backgrounds repaint on every scroll frame on mobile Safari. */
+    body {
+      background-attachment: scroll;
+    }
+  }
+
+  @media (max-width: 639px) {
+    /* iOS zooms into any focused field under 16px. */
+    input:not([type="range"]):not([type="checkbox"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
   }
 
   ::selection {
@@ -173,6 +214,42 @@
     text-shadow: 0 0 18px rgba(232, 68, 62, 0.5);
   }
 
+  /* Horizontal scroll strip for chip rows on phones. */
+  .scroll-strip {
+    @apply -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .scroll-strip::-webkit-scrollbar {
+    display: none;
+  }
+  .scroll-strip > * {
+    @apply shrink-0;
+    scroll-snap-align: start;
+  }
+
+  /* Segmented filter pill: 40px tall on touch, compact on desktop. */
+  .pill {
+    @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-3 font-display text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition active:scale-[0.97] sm:min-h-8;
+  }
+  .pill-on {
+    @apply bg-gradient-to-b from-m-blue-500 to-m-blue-700 text-white shadow;
+  }
+  .pill-off {
+    @apply bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200;
+  }
+
+  /* Phone-only action bar docked above the bottom tab bar. */
+  .action-dock {
+    @apply fixed inset-x-0 z-30 border-t border-zinc-800/80 bg-carbon-950/90 px-4 py-2 backdrop-blur-xl lg:hidden;
+    /* + 3px for the tab bar's stripe and top border. */
+    bottom: calc(var(--tabbar-h) + 3px + var(--safe-bottom));
+    box-shadow: 0 -12px 32px -12px rgba(0, 0, 0, 0.8);
+  }
+  .action-dock-spacer {
+    @apply h-20 lg:hidden;
+  }
+
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition;
   }
@@ -200,6 +277,16 @@
     cursor: pointer;
     background: linear-gradient(90deg, #2f6fd6 var(--fill, 50%), #20202a var(--fill, 50%));
     box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+
+  @media (pointer: coarse) {
+    input[type="range"].slider-track {
+      height: 14px;
+    }
+    input[type="range"].slider-track::-webkit-slider-thumb {
+      width: 32px !important;
+      height: 32px !important;
+    }
   }
 
   input[type="range"].slider-track::-webkit-slider-thumb {

@@ -6,8 +6,13 @@ export function ProgressModal() {
   if (!activeTransfer) return null;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-      <div className="carbon-soft w-full max-w-sm rounded-2xl border border-zinc-800 p-6 shadow-2xl">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={activeTransfer.label}
+      className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:px-4"
+    >
+      <div className="carbon-soft w-full max-w-sm rounded-t-2xl border border-zinc-800 p-6 pb-[calc(var(--safe-bottom)+24px)] shadow-2xl sm:rounded-2xl sm:pb-6">
         <div className="flex items-center gap-3">
           <Loader2 className="h-5 w-5 animate-spin text-m-blue-400" />
           <p className="font-display text-sm font-bold uppercase tracking-wide text-zinc-200">

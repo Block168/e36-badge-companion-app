@@ -48,9 +48,10 @@ export function ConnectionCard() {
   return (
     <div className="card-track">
       <div className="m-stripe h-1 w-full opacity-70" />
-      <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[auto,1fr]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 p-4 sm:gap-8 sm:p-8 lg:grid-cols-[auto_minmax(0,1fr)]">
         <div className="flex flex-col items-center gap-5 lg:items-start">
           <BadgePreview
+            className="w-full max-w-[168px] sm:max-w-none"
             faceUrl={connected ? previewFace : null}
             brightness={connected ? brightness : 0}
             connected={connected}
@@ -75,7 +76,7 @@ export function ConnectionCard() {
           )}
         </div>
 
-        <div className="flex flex-col justify-center gap-5">
+        <div className="flex min-w-0 flex-col justify-center gap-5">
           <div className="flex flex-wrap items-center gap-2.5">
             <span
               className={cn(
@@ -142,7 +143,7 @@ export function ConnectionCard() {
           </div>
 
           <div>
-            <h2 className="font-display text-3xl font-black uppercase tracking-wide text-white">
+            <h2 className="break-words font-display text-2xl font-black uppercase tracking-wide text-white sm:text-3xl">
               {badgeInfo?.name ?? "No badge in the garage"}
             </h2>
             <p className="mt-1.5 max-w-lg text-sm text-zinc-400">
@@ -153,33 +154,35 @@ export function ConnectionCard() {
           </div>
 
           {connected && badgeInfo && (
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-zinc-800 bg-black/40 p-3.5">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="min-w-0 rounded-xl border border-zinc-800 bg-black/40 p-3 sm:p-3.5">
                 <div className="flex items-center justify-between text-zinc-500">
                   <span className="text-xs font-semibold">Battery</span>
                   <BatteryMedium className="h-3.5 w-3.5" />
                 </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <p className="font-display text-xl font-bold tabular-nums text-white">{badgeInfo.batteryPercent}%</p>
+                <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="font-display text-lg font-bold tabular-nums text-white sm:text-xl">{badgeInfo.batteryPercent}%</p>
                   <BatteryMeter percent={badgeInfo.batteryPercent} />
                 </div>
               </div>
-              <div className="rounded-xl border border-zinc-800 bg-black/40 p-3.5">
+              <div className="min-w-0 rounded-xl border border-zinc-800 bg-black/40 p-3 sm:p-3.5">
                 <div className="flex items-center justify-between text-zinc-500">
                   <span className="text-xs font-semibold">Firmware</span>
                   <Cpu className="h-3.5 w-3.5" />
                 </div>
-                <p className="mt-2 font-display text-xl font-bold text-white">
+                <p className="mt-2 font-display text-lg font-bold text-white sm:text-xl">
                   v{badgeInfo.firmwareVersion}
-                  <span className="ml-2 align-middle text-[11px] font-bold text-zinc-600">{badgeInfo.hardwareRevision}</span>
+                  <span className="block text-[11px] font-bold text-zinc-600 sm:ml-2 sm:inline sm:align-middle">
+                    {badgeInfo.hardwareRevision}
+                  </span>
                 </p>
               </div>
-              <div className="rounded-xl border border-zinc-800 bg-black/40 p-3.5">
+              <div className="min-w-0 rounded-xl border border-zinc-800 bg-black/40 p-3 sm:p-3.5">
                 <div className="flex items-center justify-between text-zinc-500">
                   <span className="text-xs font-semibold">Storage</span>
                   <HardDrive className="h-3.5 w-3.5" />
                 </div>
-                <p className="mt-2 font-display text-xl font-bold text-white">{usedPct}%</p>
+                <p className="mt-2 font-display text-lg font-bold text-white sm:text-xl">{usedPct}%</p>
                 <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
                   <div
                     className={cn(
@@ -193,27 +196,35 @@ export function ConnectionCard() {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-3 pt-1">
+          <div className="grid grid-cols-2 gap-3 pt-1 sm:flex sm:flex-wrap">
             {!connected && (
               <>
-                <button onClick={connectWifi} disabled={connecting} className="btn-primary">
+                <button
+                  onClick={connectWifi}
+                  disabled={connecting}
+                  className="btn-primary col-span-2 min-h-12 sm:min-h-0"
+                >
                   <Wifi className="h-4 w-4" />
                   Connect via WiFi
                 </button>
                 {bleSupported && (
-                  <button onClick={connect} disabled={connecting} className="btn-ghost">
+                  <button onClick={connect} disabled={connecting} className="btn-ghost min-h-11 sm:min-h-0">
                     <Bluetooth className="h-4 w-4" />
                     Bluetooth
                   </button>
                 )}
-                <button onClick={connectDemo} disabled={connecting} className="btn-ghost">
+                <button
+                  onClick={connectDemo}
+                  disabled={connecting}
+                  className={cn("btn-ghost min-h-11 sm:min-h-0", !bleSupported && "col-span-2")}
+                >
                   <Sparkles className="h-4 w-4" />
                   Try Demo Mode
                 </button>
               </>
             )}
             {connected && (
-              <button onClick={disconnect} className="btn-danger">
+              <button onClick={disconnect} className="btn-danger col-span-2 min-h-11 sm:min-h-0">
                 Disconnect
               </button>
             )}

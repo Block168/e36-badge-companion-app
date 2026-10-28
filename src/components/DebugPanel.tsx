@@ -29,30 +29,31 @@ export function DebugPanel() {
   const levels: (LogLevel | "all")[] = ["all", "info", "gatt", "success", "warn", "error"];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr,320px]">
-      <div className="card-track p-5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="card-track min-w-0 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Bug className="h-5 w-5 text-violet-400" />
-            <h3 className="font-display text-lg font-bold uppercase tracking-widest text-white">
+            <h3 className="font-display text-base font-bold uppercase tracking-widest text-white sm:text-lg">
               GATT Debug Console
             </h3>
           </div>
           <button
             onClick={clearLogs}
-            className="chip border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-red-800 hover:text-red-300"
+            className="chip min-h-10 border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-red-800 hover:text-red-300 sm:min-h-0"
           >
             <Trash2 className="h-3.5 w-3.5" /> Clear Logs
           </button>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 scroll-strip">
           {levels.map((l) => (
             <button
               key={l}
               onClick={() => setFilter(l)}
+              aria-pressed={filter === l}
               className={cn(
-                "rounded-lg px-2.5 py-1 font-display text-[10px] font-bold uppercase tracking-wider transition",
+                "pill !text-[10px]",
                 filter === l ? "bg-violet-600 text-white" : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800",
               )}
             >
@@ -63,28 +64,28 @@ export function DebugPanel() {
 
         <div
           ref={scrollRef}
-          className="mt-4 h-96 overflow-y-auto rounded-xl border border-zinc-800 bg-black/60 p-3 font-mono text-xs leading-relaxed"
+          className="mt-4 h-[55vh] overflow-y-auto overscroll-contain rounded-xl border border-zinc-800 bg-black/60 p-3 font-mono text-[11px] leading-relaxed sm:h-96 sm:text-xs"
         >
           {filteredLogs.length === 0 ? (
             <p className="text-zinc-600">No logs yet. Connect to a badge to see live GATT activity.</p>
           ) : (
             filteredLogs.map((log) => (
-              <div key={log.id} className="flex gap-2 py-0.5">
+              <div key={log.id} className="flex flex-wrap gap-x-2 py-0.5 sm:flex-nowrap">
                 <span className="shrink-0 text-zinc-600">
                   {new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}
                 </span>
                 <span className={cn("shrink-0 font-semibold uppercase", LEVEL_STYLES[log.level])}>
                   [{log.level}]
                 </span>
-                <span className="text-zinc-300">{log.message}</span>
-                {log.detail && <span className="text-zinc-600">— {log.detail}</span>}
+                <span className="min-w-0 break-words text-zinc-300">{log.message}</span>
+                {log.detail && <span className="min-w-0 break-all text-zinc-600">— {log.detail}</span>}
               </div>
             ))
           )}
         </div>
       </div>
 
-      <aside className="card-track h-fit space-y-4 p-5">
+      <aside className="card-track h-fit min-w-0 space-y-4 p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Radio className="h-4 w-4 text-emerald-400" />
           <h3 className="font-display text-sm font-bold uppercase tracking-widest text-zinc-200">
