@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   BatteryMedium,
-  Bluetooth,
   Cpu,
   Gauge,
   HardDrive,
@@ -9,7 +8,6 @@ import {
   Moon,
   Sparkles,
   Square,
-  Wifi,
   Zap,
 } from "lucide-react";
 import { useBadge } from "../context/BadgeContext";
@@ -19,7 +17,6 @@ import { BrightnessControl } from "./BrightnessControl";
 import { InstallPrompt } from "./InstallPrompt";
 import { Row, RowIcon, ScreenHeader, Section } from "./ui";
 import { speedGaugeDataUrl } from "./LiveGauge";
-import { cn } from "../utils/cn";
 
 /** Plays a saved animation's frames on the preview so "Now Playing" moves like the badge does. */
 function useItemPreview(item: LibraryItem | undefined, kmh: number): string | null {
@@ -51,8 +48,7 @@ function useItemPreview(item: LibraryItem | undefined, kmh: number): string | nu
 }
 
 export function GarageScreen() {
-  const { connectionState, bleSupported, transport, isSimulated, badgeInfo, brightness, connect, connectWifi, connectDemo, disconnect } =
-    useBadge();
+  const { connectionState, isSimulated, badgeInfo, brightness, connect, connectDemo, disconnect } = useBadge();
   const { nowPlaying, itemById, playlistRun, playlists, stopPlaylist, activeTriggerId, triggers, nightActive, speed } = useAutomation();
   const connected = connectionState === "connected";
   const connecting = connectionState === "connecting";
@@ -71,48 +67,34 @@ export function GarageScreen() {
           <BadgePreview faceUrl={null} brightness={0} scanning size={240} className="w-full max-w-[240px]" />
         </div>
 
-        <div className="mb-8 flex flex-col gap-3">
-          <button onClick={connectWifi} disabled={connecting} className="btn-primary w-full">
-            <Wifi className="h-5 w-5" />
-            Connect via WiFi
+        <div className="mb-8 flex flex-col items-center gap-2">
+          <button onClick={connect} disabled={connecting} className="btn-primary w-full">
+            {connecting ? "Connecting…" : "Connect"}
           </button>
-          <div className={cn("grid gap-3", bleSupported && "grid-cols-2")}>
-            {bleSupported && (
-              <button onClick={connect} disabled={connecting} className="btn-secondary">
-                <Bluetooth className="h-5 w-5" />
-                Bluetooth
-              </button>
-            )}
-            <button onClick={connectDemo} disabled={connecting} className="btn-secondary">
-              <Sparkles className="h-5 w-5" />
-              Try Demo Mode
-            </button>
-          </div>
+          <button onClick={connectDemo} disabled={connecting} className="link-btn text-label-2">
+            <Sparkles className="h-4 w-4" />
+            Try Demo Mode
+          </button>
         </div>
 
         <Section title="How to connect">
-          <Row
-            icon={
-              <RowIcon color="bg-link">
-                <Wifi className="h-4 w-4" />
-              </RowIcon>
-            }
-            title="WiFi"
-            subtitle={<span className="whitespace-normal">Join the E36-Badge network in your phone's settings, then tap Connect.</span>}
-          />
-          <Row
-            icon={
-              <RowIcon color="bg-[#5e5ce6]">
-                <Bluetooth className="h-4 w-4" />
-              </RowIcon>
-            }
-            title="Bluetooth"
-            subtitle={
-              <span className="whitespace-normal">
-                {bleSupported ? "Android and desktop Chrome — no WiFi needed." : "Not available here — iOS Safari has no Web Bluetooth."}
-              </span>
-            }
-          />
+          {[
+            "Turn on your badge.",
+            <>
+              In your phone's settings, join <span className="whitespace-nowrap">E36-Badge</span>.
+            </>,
+            "Come back here and tap Connect.",
+          ].map((step, i) => (
+            <Row
+              key={i}
+              icon={
+                <RowIcon>
+                  <span className="text-[13px] font-semibold tabular-nums">{i + 1}</span>
+                </RowIcon>
+              }
+              title={<span className="whitespace-normal">{step}</span>}
+            />
+          ))}
         </Section>
 
         <InstallPrompt />
@@ -138,7 +120,7 @@ export function GarageScreen() {
         actions={
           <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[13px] font-medium text-label-2">
             <span className="h-2 w-2 rounded-full bg-go" />
-            {transport === "wifi" ? "WiFi" : transport === "ble" ? "Bluetooth" : "Demo"}
+            {isSimulated ? "Demo" : "Connected"}
           </span>
         }
       />

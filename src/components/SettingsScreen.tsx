@@ -127,7 +127,7 @@ export function SettingsScreen() {
         )}
       </Section>
 
-      <Section title="Startup" footer="Over WiFi the badge shows this when it powers on. Anything you play by hand from Library becomes the new boot display.">
+      <Section title="Startup" footer="The badge shows this when it powers on. Anything you play by hand from Library becomes the new boot display.">
         <Row
           icon={
             <RowIcon color="bg-go">

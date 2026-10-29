@@ -323,7 +323,7 @@ export function AnimationEditor({ onBack }: { onBack: () => void }) {
         </Section>
       )}
 
-      <Section footer="Over WiFi the badge keeps this animation after a restart and plays it on power-up.">
+      <Section footer="The badge keeps this animation after a restart and plays it on power-up.">
         <Row title="Keep after restart" accessory={<Toggle checked={persist} onChange={setPersist} label="Keep after restart" />} />
       </Section>
 

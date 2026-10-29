@@ -12,7 +12,7 @@ export interface BadgeInfo {
   brightness: number;
   totalStorageKb: number;
   usedStorageKb: number;
-  /** Size of the stored face/animation files; reported by WiFi firmware with upload limits. */
+  /** Size of the stored face/animation files; reported by firmware with upload limits. */
   faceFileBytes?: number;
   animFileBytes?: number;
 }
@@ -55,7 +55,7 @@ export interface TransferRecord {
   detail?: string;
 }
 
-/** Settings the app can persist on the badge's flash storage (WiFi transport). */
+/** Settings the app can persist on the badge's flash storage. */
 export interface BadgeConfig {
   active?: "face" | "animation";
   brightness?: number;
@@ -69,12 +69,4 @@ export interface LogEntry {
   level: LogLevel;
   message: string;
   detail?: string;
-}
-
-export interface CharacteristicSnapshot {
-  uuid: string;
-  label: string;
-  properties: string[];
-  lastValuePreview: string;
-  lastUpdated: number | null;
 }

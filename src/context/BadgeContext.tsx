@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BadgeBleClient, type ProgressHandler } from "../lib/bleClient";
-import { BadgeWifiClient } from "../lib/wifiClient";
+import { BadgeWifiClient, type ProgressHandler } from "../lib/wifiClient";
+import { BadgeDemoClient } from "../lib/demoClient";
 import { FACE_BYTES, animationBytes, assertFits, BadgeStorageError } from "../lib/capacity";
 import { loadHistory, saveHistory, loadCustomFaces, saveCustomFaces, loadLastBrightness, saveLastBrightness } from "../lib/storage";
 import type {
@@ -19,12 +19,12 @@ interface ToastMessage {
   message: string;
 }
 
-type Transport = "wifi" | "ble" | "demo";
+type Transport = "badge" | "demo";
 
 export interface SendOptions {
   /** Automation-driven send: no success toast, no blocking progress modal. */
   quiet?: boolean;
-  /** Save as the badge's startup content (WiFi firmware). Defaults to true. */
+  /** Save as the badge's startup content. Defaults to true. */
   persist?: boolean;
 }
 
@@ -36,8 +36,6 @@ export interface ActiveTransfer {
 
 interface BadgeContextValue {
   connectionState: ConnectionState;
-  bleSupported: boolean;
-  wifiSupported: boolean;
   transport: Transport | null;
   isSimulated: boolean;
   badgeInfo: BadgeInfo | null;
@@ -48,7 +46,6 @@ interface BadgeContextValue {
   toasts: ToastMessage[];
   activeTransfer: ActiveTransfer | null;
   connect: () => Promise<void>;
-  connectWifi: () => Promise<void>;
   connectDemo: () => Promise<void>;
   disconnect: () => Promise<void>;
   setBrightness: (value: number) => void;
@@ -74,7 +71,7 @@ const BadgeContext = createContext<BadgeContextValue | null>(null);
 const MAX_LOGS = 250;
 
 export function BadgeProvider({ children }: { children: ReactNode }) {
-  const clientRef = useRef<BadgeBleClient | BadgeWifiClient | null>(null);
+  const clientRef = useRef<BadgeWifiClient | BadgeDemoClient | null>(null);
   const batteryTimerRef = useRef<number | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const [transport, setTransport] = useState<Transport | null>(null);
@@ -86,9 +83,6 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
   const [brightness, setBrightnessState] = useState<number>(() => loadLastBrightness());
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [activeTransfer, setActiveTransfer] = useState<ActiveTransfer | null>(null);
-
-  const wifiSupported = BadgeWifiClient.isSupported();
-  const bleSupported = BadgeBleClient.isSupported();
 
   const pushToast = useCallback((kind: ToastMessage["kind"], message: string) => {
     const id = crypto.randomUUID();
@@ -128,8 +122,8 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
   }, [stopBatteryPolling]);
 
   const makeClient = useCallback(
-    (kind: Transport): BadgeBleClient | BadgeWifiClient => {
-      const client = kind === "wifi" ? new BadgeWifiClient() : new BadgeBleClient();
+    (kind: Transport): BadgeWifiClient | BadgeDemoClient => {
+      const client = kind === "badge" ? new BadgeWifiClient() : new BadgeDemoClient();
       client.onLog = appendLog;
       client.onDisconnected = resetConnection;
       return client;
@@ -146,7 +140,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
           setBadgeInfo((prev) => (prev ? { ...prev, batteryPercent: info.batteryPercent } : prev));
         }
       } catch {
-        // transient BLE read failures are fine to ignore
+        // a missed battery poll is fine to ignore
       }
     }, 15000);
   }, [stopBatteryPolling]);
@@ -164,73 +158,41 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
   );
 
   const connect = useCallback(async () => {
-    if (!bleSupported) {
-      pushToast("error", "Bluetooth isn't supported in this browser. Use WiFi or Demo Mode instead.");
-      return;
-    }
-    const client = makeClient("ble");
+    const client = makeClient("badge");
     clientRef.current = client;
     setConnectionState("connecting");
     try {
       const info = await client.connect();
       setIsSimulated(false);
-      setTransport("ble");
+      setTransport("badge");
       finishConnect(info);
       startBatteryPolling();
-      pushToast("success", `Connected to ${info.name} via Bluetooth`);
+      pushToast("success", `Connected to ${info.name}`);
     } catch (err) {
       setConnectionState("error");
       const message = err instanceof Error ? err.message : String(err);
-      if (message === "WEB_BLUETOOTH_UNSUPPORTED") {
-        pushToast("error", "Web Bluetooth isn't supported in this browser. Use WiFi or Demo Mode instead.");
-      } else if (message.toLowerCase().includes("cancelled") || message.toLowerCase().includes("user gesture")) {
-        setConnectionState("disconnected");
-      } else {
-        pushToast("error", `Connection failed: ${message}`);
-      }
+      pushToast(
+        "error",
+        message === "TIMED_OUT" || message === "NETWORK_ERROR" || message.includes("fetch")
+          ? "Couldn't find your badge. Make sure your phone is joined to E36-Badge, then try again."
+          : `Couldn't connect: ${message}`,
+      );
       appendLog("error", "Connection attempt failed", message);
-      setTimeout(() => setConnectionState((s) => (s === "error" ? "disconnected" : s)), 2200);
-    }
-  }, [appendLog, bleSupported, finishConnect, makeClient, pushToast, startBatteryPolling]);
-
-  const connectWifi = useCallback(async () => {
-    const client = makeClient("wifi");
-    clientRef.current = client;
-    setConnectionState("connecting");
-    try {
-      const info = await client.connect();
-      setIsSimulated(false);
-      setTransport("wifi");
-      finishConnect(info);
-      startBatteryPolling();
-      pushToast("success", `Linked to ${info.name} over WiFi`);
-    } catch (err) {
-      setConnectionState("error");
-      const message = err instanceof Error ? err.message : String(err);
-      if (message === "TIMED_OUT") {
-        pushToast(
-          "error",
-          "Couldn't reach the badge over WiFi. Make sure your phone is joined to the E36-Badge network, then try again.",
-        );
-      } else {
-        pushToast("error", `WiFi connection failed: ${message}`);
-      }
-      appendLog("error", "WiFi connection attempt failed", message);
       setTimeout(() => setConnectionState((s) => (s === "error" ? "disconnected" : s)), 2200);
     }
   }, [appendLog, finishConnect, makeClient, pushToast, startBatteryPolling]);
 
   const connectDemo = useCallback(async () => {
-    const client = makeClient("demo") as BadgeBleClient;
+    const client = makeClient("demo") as BadgeDemoClient;
     clientRef.current = client;
     // Debug/test seam: lets a headless probe or the browser console inject
-    // simulated BLE failures and inspect recovery stats.
+    // simulated write failures and inspect recovery stats.
     if (typeof window !== "undefined") {
-      (window as unknown as { __badgeBleClient?: BadgeBleClient }).__badgeBleClient = client;
+      (window as unknown as { __badgeDemoClient?: BadgeDemoClient }).__badgeDemoClient = client;
     }
     setConnectionState("connecting");
     try {
-      const info = await client.connectSimulated();
+      const info = await client.connect();
       setIsSimulated(true);
       setTransport("demo");
       finishConnect(info);
@@ -485,8 +447,6 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
   const value = useMemo<BadgeContextValue>(
     () => ({
       connectionState,
-      bleSupported,
-      wifiSupported,
       transport,
       isSimulated,
       badgeInfo,
@@ -497,7 +457,6 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
       toasts,
       activeTransfer,
       connect,
-      connectWifi,
       connectDemo,
       disconnect,
       setBrightness,
@@ -514,8 +473,6 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
     }),
     [
       connectionState,
-      bleSupported,
-      wifiSupported,
       transport,
       isSimulated,
       badgeInfo,
@@ -526,7 +483,6 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
       toasts,
       activeTransfer,
       connect,
-      connectWifi,
       connectDemo,
       disconnect,
       setBrightness,

@@ -20,7 +20,7 @@ export function InstallPrompt({ className }: { className?: string }) {
   const [dismissed, setDismissed] = useState(false);
   const [installing, setInstalling] = useState(false);
 
-  // No PWA install over plain HTTP (e.g. when the badge serves the app over WiFi).
+  // No PWA install over plain HTTP (e.g. when the badge serves the app itself).
   if (typeof window !== "undefined" && window.isSecureContext === false) return null;
 
   const ios = isIOS();

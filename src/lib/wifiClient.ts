@@ -19,7 +19,7 @@ export type ProgressHandler = (progress: TransferProgress) => void;
 const FRAME_SIZE = DISPLAY_WIDTH * DISPLAY_HEIGHT * 2;
 
 /**
- * Talks to the E36 badge over HTTP instead of BLE.
+ * Talks to the E36 badge over its own WiFi hotspot (HTTP).
  *
  * The badge's ESP32 runs a soft-AP that serves this very app (single-file
  * build) and exposes a REST API under /api. When the page is served from the
@@ -28,15 +28,10 @@ const FRAME_SIZE = DISPLAY_WIDTH * DISPLAY_HEIGHT * 2;
  * mixed content, so WiFi mode only works end-to-end from the badge-served app.
  */
 export class BadgeWifiClient {
-  public readonly transport = "wifi" as const;
   private connectedFlag = false;
 
   onLog: WifiLogger = () => {};
   onDisconnected: () => void = () => {};
-
-  static isSupported(): boolean {
-    return true;
-  }
 
   get isConnected(): boolean {
     return this.connectedFlag;
@@ -67,7 +62,7 @@ export class BadgeWifiClient {
 
   async disconnect(): Promise<void> {
     if (this.connectedFlag) {
-      this.onLog("info", "Closing WiFi session (HTTP link is stateless)");
+      this.onLog("info", "Closing badge session");
     }
     this.connectedFlag = false;
     this.onDisconnected();

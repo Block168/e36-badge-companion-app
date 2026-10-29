@@ -384,7 +384,7 @@ async function scenarioTabStateMemory(browser) {
 }
 
 async function scenarioRetryRecovery(browser) {
-  log("— BLE WRITE-RETRY RECOVERY (simulated 35% write failure rate) —");
+  log("— WRITE-RETRY RECOVERY (simulated 35% write failure rate) —");
   const page = await bootPage(browser);
   makeErrorCatcher(page);
   await page.goto(URL_, { waitUntil: "load" });
@@ -392,29 +392,29 @@ async function scenarioRetryRecovery(browser) {
   await openFaceSheet(page);
 
   const client = await page.evaluate(() => {
-    const c = window.__badgeBleClient;
+    const c = window.__badgeDemoClient;
     return c ? { hasClient: true, failures: c.failedWriteCount } : { hasClient: false };
   });
-  if (!client.hasClient) fail("retry: debug seam not exposed on window", "window.__badgeBleClient missing");
+  if (!client.hasClient) fail("retry: debug seam not exposed on window", "window.__badgeDemoClient missing");
   else if (client.failures !== 0) fail("retry: failedWriteCount should start at 0", `got ${client.failures}`);
   else pass("retry: debug seam exposed, clean baseline");
 
-  await page.evaluate(() => window.__badgeBleClient.setSimulatedFailureRate(0.35));
+  await page.evaluate(() => window.__badgeDemoClient.setSimulatedFailureRate(0.35));
   const t0 = Date.now();
   await clickByText(page, "Play on Badge");
   await waitForText(page, "uploaded to badge", 120000);
   const transferMs = Date.now() - t0;
 
   const after = await page.evaluate(() => ({
-    failures: window.__badgeBleClient.failedWriteCount,
-    rate: window.__badgeBleClient.simulatedFailureRate,
+    failures: window.__badgeDemoClient.failedWriteCount,
+    rate: window.__badgeDemoClient.simulatedFailureRate,
   }));
   log("face transfer with injected failures", transferMs, "ms");
   log("recovered write failures", after.failures, "writes");
   if (after.failures === 0) fail("retry: expected injected failures to be recovered", "failedWriteCount === 0");
   else pass("retry: transfer survived injected write failures");
 
-  await page.evaluate(() => window.__badgeBleClient.setSimulatedFailureRate(0));
+  await page.evaluate(() => window.__badgeDemoClient.setSimulatedFailureRate(0));
   pass("retry: failure injection reset to 0");
   await page.close();
 }
@@ -507,22 +507,19 @@ async function scenarioConcurrency(browser) {
 }
 
 async function scenarioMobile(browser) {
-  log("— MOBILE VIEWPORT (iPhone-ish 390×844, no Web Bluetooth) —");
+  log("— MOBILE VIEWPORT (iPhone-ish 390×844) —");
   const page = await bootPage(browser, { width: 390, height: 844, isMobile: true, hasTouch: true });
   makeErrorCatcher(page);
-  await page.evaluateOnNewDocument(() => {
-    Object.defineProperty(navigator, "bluetooth", { get: () => undefined, configurable: true });
-  });
   await page.goto(URL_, { waitUntil: "load" });
-  const hasWifi = await page.evaluate(() => [...document.querySelectorAll("button")].some((b) => b.textContent.includes("Connect via WiFi")));
-  const hasBle = await page.evaluate(() => [...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "Bluetooth"));
+  const hasConnect = await page.evaluate(() => [...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "Connect"));
+  const transportWords = await page.evaluate(() => /wi-?fi|bluetooth/i.test(document.body.innerText));
   const hasHint = await page.evaluate(() => document.body.innerText.includes("E36-Badge"));
-  log("Connect via WiFi visible", hasWifi ? "yes" : "no");
-  log("Bluetooth button hidden (no Web Bluetooth)", hasBle ? "no — VISIBLE!" : "yes — hidden");
+  log("Connect button visible", hasConnect ? "yes" : "no");
+  log("WiFi/Bluetooth wording hidden", transportWords ? "no — VISIBLE!" : "yes — hidden");
   log("E36-Badge hint present", hasHint ? "yes" : "no");
-  if (!hasWifi) fail("mobile: WiFi connect button missing");
-  else if (hasBle) fail("mobile: Bluetooth button should be hidden on non-BT devices");
-  else pass("mobile: correct transport options");
+  if (!hasConnect) fail("mobile: Connect button missing");
+  else if (transportWords) fail("mobile: connection screen should not mention WiFi or Bluetooth");
+  else pass("mobile: single Connect button, no transport wording");
   await page.close();
 }
 
