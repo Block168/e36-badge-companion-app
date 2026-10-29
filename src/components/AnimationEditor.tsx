@@ -4,7 +4,7 @@ import { PRESET_FACES } from "../data/presetFaces";
 import { renderPresetFaceDataUrl } from "../lib/presetRender";
 import { normalizeToDisplaySquare } from "../lib/imageEncode";
 import { MAX_ANIMATION_FRAMES } from "../lib/protocol";
-import { EFFECTS, generateEffectFrames, type EffectName } from "../lib/effects";
+import { EFFECTS, generateEffectFrames, renderSignatureThumb, type EffectName } from "../lib/effects";
 import { useBadge } from "../context/BadgeContext";
 import { useAutomation } from "../context/AutomationContext";
 import { BadgePreview } from "./BadgePreview";
@@ -12,6 +12,9 @@ import { NavBar, Row, Section, Toggle } from "./ui";
 import { maxFramesThatFit } from "../lib/capacity";
 import { cn } from "../utils/cn";
 import type { AnimationFrame } from "../types";
+
+const signatureEffects = EFFECTS.filter((e) => e.group === "signature");
+const faceEffects = EFFECTS.filter((e) => e.group === "face");
 
 const chip =
   "min-h-10 max-w-44 truncate rounded-full bg-fill px-4 text-[14px] font-medium whitespace-nowrap text-label transition active:scale-[0.96] hover:bg-fill-strong disabled:opacity-40";
@@ -32,6 +35,9 @@ export function AnimationEditor({ onBack }: { onBack: () => void }) {
   const [marqueeText, setMarqueeText] = useState("E36");
   const [persist, setPersist] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [signatureThumbs] = useState(() =>
+    Object.fromEntries(signatureEffects.map((e) => [e.id, renderSignatureThumb(e.id, 192)])),
+  );
 
   useEffect(() => {
     if (!playing || frames.length === 0) return;
@@ -256,16 +262,55 @@ export function AnimationEditor({ onBack }: { onBack: () => void }) {
 
       <section className="mb-8">
         <div className="section-header">
-          <span>Effects</span>
+          <span>Signature</span>
+          <span className="normal-case">seamless loops</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {signatureEffects.map((effect) => (
+            <button
+              key={effect.id}
+              onClick={() => void runEffect(effect.id)}
+              disabled={effectRunning !== null || full}
+              title={effect.description}
+              className="group flex flex-col items-center gap-2 rounded-2xl bg-surface p-3 text-center transition active:scale-[0.97] hover:bg-surface-2 disabled:opacity-40"
+            >
+              <span className="relative block w-full max-w-[96px]">
+                {signatureThumbs[effect.id] && (
+                  <img
+                    src={signatureThumbs[effect.id]!}
+                    alt=""
+                    draggable={false}
+                    className="aspect-square w-full rounded-full ring-1 ring-white/10 transition duration-200 group-hover:ring-white/30"
+                  />
+                )}
+                {effectRunning === effect.id && (
+                  <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </span>
+                )}
+              </span>
+              <span className="w-full truncate text-[14px] font-semibold">{effect.label}</span>
+              <span className="-mt-1.5 text-[12px] text-label-2 tabular-nums">
+                {effect.frameCount} frames · {(((effect.frameCount ?? 8) * (effect.frameDurationMs ?? 120)) / 1000).toFixed(1)}s
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="section-footer">Drawn from scratch and added after your current frames. Each one loops with no visible jump.</p>
+      </section>
+
+      <section className="mb-8">
+        <div className="section-header">
+          <span>Face Effects</span>
           <span className="normal-case">applies to the last frame</span>
         </div>
         <div className="list-group p-4">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {EFFECTS.map((effect) => (
+            {faceEffects.map((effect) => (
               <button
                 key={effect.id}
                 onClick={() => void runEffect(effect.id)}
-                disabled={effectRunning !== null}
+                disabled={effectRunning !== null || full}
                 title={effect.description}
                 className="flex min-h-11 items-center gap-2 rounded-[10px] bg-fill px-3 text-left text-[14px] font-medium transition active:scale-[0.97] hover:bg-fill-strong disabled:opacity-40"
               >

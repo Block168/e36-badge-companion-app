@@ -35,7 +35,7 @@ export function AppShell({
       {/* Status-bar scrim so content never collides with the notch. */}
       <div className="fixed inset-x-0 top-0 z-30 h-[var(--safe-top)] bg-black/80 backdrop-blur-xl" />
 
-      <main className="mx-auto max-w-2xl px-4 pt-[calc(var(--safe-top)+16px)] pb-[calc(var(--tabbar-h)+var(--safe-bottom)+32px)]">
+      <main className="mx-auto max-w-2xl overflow-x-clip px-4 pt-[calc(var(--safe-top)+16px)] pb-[calc(var(--tabbar-h)+var(--safe-bottom)+32px)]">
         {children}
       </main>
 
