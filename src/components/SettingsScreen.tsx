@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { Bug, Check, History, Moon, Power } from "lucide-react";
+import { Check, History, Moon, Power } from "lucide-react";
 import { useBadge } from "../context/BadgeContext";
 import { useAutomation } from "../context/AutomationContext";
 import { BrightnessControl } from "./BrightnessControl";
 import { HistoryPanel } from "./HistoryPanel";
-import { DebugPanel } from "./DebugPanel";
 import { InstallPrompt } from "./InstallPrompt";
 import { Row, RowIcon, ScreenHeader, Section, Sheet, Thumb, Toggle } from "./ui";
 
-type View = "root" | "history" | "debug";
+type View = "root" | "history";
 
 function BootSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { connectionState } = useBadge();
@@ -41,7 +40,7 @@ function BootSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
 }
 
 export function SettingsScreen() {
-  const { history, logs } = useBadge();
+  const { history } = useBadge();
   const { nightMode, setNightMode, nightActive, bootItemId, itemById } = useAutomation();
   const [view, setView] = useState<View>("root");
   const [bootOpen, setBootOpen] = useState(false);
@@ -53,7 +52,6 @@ export function SettingsScreen() {
   };
 
   if (view === "history") return <HistoryPanel onBack={() => go("root")} />;
-  if (view === "debug") return <DebugPanel onBack={() => go("root")} />;
 
   return (
     <div>
@@ -154,17 +152,6 @@ export function SettingsScreen() {
           detail={history.length}
           chevron
           onClick={() => go("history")}
-        />
-        <Row
-          icon={
-            <RowIcon color="bg-surface-3">
-              <Bug className="h-4 w-4" />
-            </RowIcon>
-          }
-          title="Debug Console"
-          detail={logs.length}
-          chevron
-          onClick={() => go("debug")}
         />
       </Section>
 

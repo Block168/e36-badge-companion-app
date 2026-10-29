@@ -302,6 +302,8 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
 
   const speedState = useRef(new Map<string, { on: boolean; since: number }>());
   const activeTriggerRef = useRef<string | null>(null);
+  // A trigger whose send failed waits for its condition to end before retrying.
+  const failedTriggerRef = useRef<string | null>(null);
   const nightRef = useRef<boolean | null>(null);
   const latest = useRef({ triggers, playlists, nightMode, brightness, itemMap, speedLive, activeTransfer: badge.activeTransfer });
   latest.current = { triggers, playlists, nightMode, brightness, itemMap, speedLive, activeTransfer: badge.activeTransfer };
@@ -366,11 +368,14 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
         if (t.condition.kind === "time") return inTimeWindow(t.condition.start, t.condition.end);
         return L.speedLive && speedHolds(t, now);
       });
-      if (matched) {
+      if (failedTriggerRef.current && failedTriggerRef.current !== matched?.id) failedTriggerRef.current = null;
+      if (matched && failedTriggerRef.current !== matched.id) {
         if (activeTriggerRef.current !== matched.id) {
           if (await send(L.itemMap.get(matched.itemId)!, "trigger")) {
             activeTriggerRef.current = matched.id;
             setActiveTriggerId(matched.id);
+          } else {
+            failedTriggerRef.current = matched.id;
           }
         }
         return;
@@ -396,9 +401,10 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
       }
       const index = run.index % ids.length;
       const ok = await send(L.itemMap.get(ids[index])!, "playlist");
-      // A failed send retries after a short back-off instead of skipping.
+      // A failed item (e.g. too big for the badge) is skipped after a short pause
+      // rather than retried forever.
       nextDueRef.current = Date.now() + (ok ? playlist.intervalSec * 1000 : 5000);
-      if (ok && playlistRunRef.current?.playlistId === run.playlistId) {
+      if (playlistRunRef.current?.playlistId === run.playlistId) {
         setPlaylistRun({ playlistId: run.playlistId, index: index + 1 });
       }
     };

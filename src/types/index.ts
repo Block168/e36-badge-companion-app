@@ -12,6 +12,9 @@ export interface BadgeInfo {
   brightness: number;
   totalStorageKb: number;
   usedStorageKb: number;
+  /** Size of the stored face/animation files; reported by WiFi firmware with upload limits. */
+  faceFileBytes?: number;
+  animFileBytes?: number;
 }
 
 export interface PresetFace {

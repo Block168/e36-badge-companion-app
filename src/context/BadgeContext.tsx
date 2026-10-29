@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BadgeBleClient, type ProgressHandler } from "../lib/bleClient";
 import { BadgeWifiClient } from "../lib/wifiClient";
+import { FACE_BYTES, animationBytes, assertFits, BadgeStorageError } from "../lib/capacity";
 import { loadHistory, saveHistory, loadCustomFaces, saveCustomFaces, loadLastBrightness, saveLastBrightness } from "../lib/storage";
 import type {
   AnimationFrame,
@@ -310,6 +311,10 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
         setActiveTransfer({ label: `Sending "${name}"`, percent: progress.percent, background });
       };
       try {
+        // Re-read storage so the check never relies on a stale poll.
+        const info = await client.readDeviceInfo();
+        setBadgeInfo(info);
+        assertFits(info, "face", FACE_BYTES);
         const bytes = await client.sendFace(dataUrl, name, onProgress);
         if (opts?.persist !== false) await client.saveConfig({ active: "face" });
         recordTransfer({
@@ -335,7 +340,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
           success: false,
           detail: message,
         });
-        pushToast("error", `Failed to send "${name}"`);
+        pushToast("error", err instanceof BadgeStorageError ? err.message : `Failed to send "${name}"`);
         return false;
       } finally {
         setActiveTransfer(null);
@@ -367,6 +372,9 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
         });
       };
       try {
+        const info = await client.readDeviceInfo();
+        setBadgeInfo(info);
+        assertFits(info, "animation", animationBytes(frames.length));
         const bytes = await client.sendAnimation(frames, onProgress);
         if (opts?.persist !== false) {
           await client.saveConfig({ active: "animation" });
@@ -395,7 +403,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
           success: false,
           detail: message,
         });
-        pushToast("error", `Failed to upload animation "${name}"`);
+        pushToast("error", err instanceof BadgeStorageError ? err.message : `Failed to upload animation "${name}"`);
         return false;
       } finally {
         setActiveTransfer(null);

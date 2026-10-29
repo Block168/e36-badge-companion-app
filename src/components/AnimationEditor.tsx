@@ -9,6 +9,7 @@ import { useBadge } from "../context/BadgeContext";
 import { useAutomation } from "../context/AutomationContext";
 import { BadgePreview } from "./BadgePreview";
 import { NavBar, Row, Section, Toggle } from "./ui";
+import { maxFramesThatFit } from "../lib/capacity";
 import { cn } from "../utils/cn";
 import type { AnimationFrame } from "../types";
 
@@ -17,7 +18,7 @@ const chip =
 
 /** The Studio: build an animation from faces, uploads and effects, then save or upload it. */
 export function AnimationEditor({ onBack }: { onBack: () => void }) {
-  const { connectionState, brightness, sendAnimation, customFaces, pushToast } = useBadge();
+  const { connectionState, brightness, sendAnimation, customFaces, pushToast, badgeInfo } = useBadge();
   const { saveAnimation } = useAutomation();
   const connected = connectionState === "connected";
   const inputRef = useRef<HTMLInputElement>(null);
@@ -146,6 +147,9 @@ export function AnimationEditor({ onBack }: { onBack: () => void }) {
   };
 
   const full = frames.length >= MAX_ANIMATION_FRAMES;
+  // What the linked badge's free storage can hold right now.
+  const badgeFits = connected ? maxFramesThatFit(badgeInfo) : MAX_ANIMATION_FRAMES;
+  const tooBig = connected && frames.length > badgeFits;
 
   return (
     <div className="anim-push">
@@ -180,6 +184,11 @@ export function AnimationEditor({ onBack }: { onBack: () => void }) {
           </span>
           {frames.length > 0 && <> · {(totalMs / 1000).toFixed(2)}s · {fps.toFixed(1)} fps</>}
         </p>
+        {connected && badgeFits < MAX_ANIMATION_FRAMES && (
+          <p className={cn("-mt-2 text-[13px]", tooBig ? "text-warn" : "text-label-2")}>
+            {badgeFits === 0 ? "Badge storage is full" : `Your badge has room for ${badgeFits} frame${badgeFits === 1 ? "" : "s"}`}
+          </p>
+        )}
         <button onClick={() => setPlaying((p) => !p)} disabled={frames.length === 0} className="btn-secondary">
           {playing ? <Square className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
           {playing ? "Stop Preview" : "Play Preview"}
@@ -323,12 +332,18 @@ export function AnimationEditor({ onBack }: { onBack: () => void }) {
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-semibold">{name}</p>
-            <p className={cn("truncate text-[13px]", connected ? "text-label-2" : "text-warn")}>
-              {!connected ? "Connect a badge to upload" : frames.length === 0 ? "Add frames to upload" : `${frames.length} frames ready`}
+            <p className={cn("truncate text-[13px]", connected && !tooBig ? "text-label-2" : "text-warn")}>
+              {!connected
+                ? "Connect a badge to upload"
+                : frames.length === 0
+                  ? "Add frames to upload"
+                  : tooBig
+                    ? `Too big — badge fits ${badgeFits} frame${badgeFits === 1 ? "" : "s"}`
+                    : `${frames.length} frames ready`}
             </p>
           </div>
           <button
-            disabled={!connected || frames.length === 0}
+            disabled={!connected || frames.length === 0 || tooBig}
             onClick={() => sendAnimation(frames, name, { persist })}
             className="btn-primary shrink-0 px-5"
           >

@@ -216,8 +216,11 @@ export class BadgeBleClient {
         hardwareRevision: "Rev C",
         batteryPercent: this.simulatedBattery,
         brightness: this.simulatedBrightness,
-        totalStorageKb: 4096,
+        // Modelled on a 16 MB flash board (~12 MB LittleFS) so a full 20-frame animation fits.
+        totalStorageKb: 12288,
         usedStorageKb: 1180,
+        faceFileBytes: 0,
+        animFileBytes: 0,
       };
       this.onLog("info", "Read device info characteristic", JSON.stringify(info));
       return info;

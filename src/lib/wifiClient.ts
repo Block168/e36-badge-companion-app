@@ -1,4 +1,5 @@
 import { encodeToRgb565 } from "./imageEncode";
+import { BadgeStorageError, describeUploadError } from "./capacity";
 import { DISPLAY_HEIGHT, DISPLAY_WIDTH } from "./protocol";
 import type { AnimationFrame, BadgeConfig, BadgeInfo, LogLevel } from "../types";
 
@@ -192,11 +193,19 @@ export class BadgeWifiClient {
         });
       };
       xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve();
-        } else {
-          reject(new Error(`HTTP ${xhr.status}`));
+        let body: { ok?: boolean; error?: string } = {};
+        try {
+          body = JSON.parse(xhr.responseText);
+        } catch {
+          // Older firmware or a non-JSON error page.
         }
+        if (xhr.status >= 200 && xhr.status < 300 && body.ok !== false) {
+          resolve();
+          return;
+        }
+        const friendly = describeUploadError(xhr.status, body.error);
+        this.onLog("error", `Badge refused upload (HTTP ${xhr.status})`, body.error);
+        reject(friendly ? new BadgeStorageError(friendly) : new Error(`HTTP ${xhr.status}${body.error ? `: ${body.error}` : ""}`));
       };
       xhr.onerror = () => reject(new Error("NETWORK_ERROR"));
       xhr.ontimeout = () => reject(new Error("TIMED_OUT"));
