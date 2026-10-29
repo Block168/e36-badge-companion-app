@@ -1,3 +1,7 @@
+export type TabId = "garage" | "library" | "playlists" | "triggers" | "settings";
+
+export const TAB_IDS: readonly TabId[] = ["garage", "library", "playlists", "triggers", "settings"];
+
 export type ConnectionState = "disconnected" | "connecting" | "connected" | "error";
 
 export interface BadgeInfo {

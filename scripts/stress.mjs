@@ -79,7 +79,9 @@ const fail = (name, why) => results.push({ name, ok: false, why });
 
 const clickByText = (page, text) =>
   page.evaluate((t) => {
-    const el = [...document.querySelectorAll("button")].find((b) => b.textContent.includes(t));
+    const el = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent.includes(t) && b.offsetParent !== null,
+    );
     if (!el) throw new Error(`button not found: ${t}`);
     el.click();
   }, text);
@@ -107,6 +109,33 @@ async function waitForDisconnected(page) {
     () => [...document.querySelectorAll("button")].some((b) => b.textContent.includes("Try Demo Mode")),
     { timeout: 30000, polling: 100 },
   );
+}
+
+async function connectDemo(page) {
+  await clickByText(page, "Garage");
+  await sleep(80);
+  await clickByText(page, "Try Demo Mode");
+  await waitForConnected(page);
+}
+
+const hasVisibleButton = (page, text) =>
+  page.evaluate((t) => [...document.querySelectorAll("button")].some((b) => b.textContent.includes(t) && b.offsetParent !== null), text);
+
+// Library → open a face → the sheet's "Play on Badge".
+async function openFaceSheet(page, name = "Roundel Glow") {
+  await clickByText(page, "Library");
+  if (await hasVisibleButton(page, "Upload Animation")) await clickByText(page, "Library"); // leave the Studio
+  await waitForText(page, name);
+  await clickByText(page, name);
+  await waitForText(page, "Play on Badge");
+}
+
+// Library → Studio (no-op when the Studio is already open).
+async function openStudio(page) {
+  await clickByText(page, "Library");
+  await sleep(80);
+  if (!(await hasVisibleButton(page, "Upload Animation"))) await clickByText(page, "New Animation");
+  await waitForText(page, "Upload Animation");
 }
 
 function makeErrorCatcher(page) {
@@ -208,8 +237,7 @@ async function scenarioConnectLoop(browser) {
   const cycles = [];
   for (let i = 0; i < 12; i++) {
     const t0 = Date.now();
-    await clickByText(page, "Try Demo Mode");
-    await waitForConnected(page);
+    await connectDemo(page);
     const connectMs = Date.now() - t0;
     await clickByText(page, "Disconnect");
     await waitForDisconnected(page);
@@ -229,16 +257,14 @@ async function scenarioFaceTransfers(browser) {
   const page = await bootPage(browser);
   makeErrorCatcher(page);
   await page.goto(URL_, { waitUntil: "load" });
-  await clickByText(page, "Try Demo Mode");
-  await waitForConnected(page);
-  await clickByText(page, "Faces");
-  await waitForText(page, "Send to Badge");
+  await connectDemo(page);
 
   const beforeHeap = await jsHeap(page);
   const times = [];
   for (let i = 0; i < 3; i++) {
+    await openFaceSheet(page);
     const t0 = Date.now();
-    await clickByText(page, "Send to Badge");
+    await clickByText(page, "Play on Badge");
     await waitForText(page, "uploaded to badge", 90000);
     times.push(Date.now() - t0);
   }
@@ -255,9 +281,8 @@ async function scenarioAnimation(browser) {
   const page = await bootPage(browser);
   makeErrorCatcher(page);
   await page.goto(URL_, { waitUntil: "load" });
-  await clickByText(page, "Try Demo Mode");
-  await waitForConnected(page);
-  await clickByText(page, "Animations");
+  await connectDemo(page);
+  await openStudio(page);
   await waitForText(page, "Roundel Glow");
   await clickByText(page, "Roundel Glow");       // quick-add preset frame
   await sleep(300);
@@ -280,26 +305,25 @@ async function scenarioFaceToAnimationFlow(browser) {
   const page = await bootPage(browser);
   makeErrorCatcher(page);
   await page.goto(URL_, { waitUntil: "load" });
-  await clickByText(page, "Try Demo Mode");
-  await waitForConnected(page);
+  await connectDemo(page);
 
   const pngPath = resolve(distDir, "_test-face.png");
   writeFileSync(pngPath, makeTestPng());
 
-  // 1) Upload the image in the Faces tab.
-  await clickByText(page, "Faces");
+  // 1) Upload the image in the Library tab.
+  await clickByText(page, "Library");
   await page.waitForSelector('input[type="file"]', { timeout: 15000 });
   const input = await page.$('input[type="file"]');
   await input.uploadFile(pngPath);
   await waitForText(page, "Face added", 20000);
   await waitForText(page, "test-face", 20000);
-  log("face uploaded in Faces tab", "test-face");
+  log("face uploaded in Library", "test-face");
 
-  // 2) It must appear as a quick-add in the Animations tab.
-  await clickByText(page, "Animations");
+  // 2) It must appear as a quick-add in the Studio.
+  await openStudio(page);
   await waitForText(page, "saved faces:", 20000);
   await waitForText(page, "test-face", 20000);
-  log("face listed under quick-add in Animations", "yes");
+  log("face listed under quick-add in Studio", "yes");
 
   // 3) Clicking it must add an animation frame.
   await page.evaluate(() => {
@@ -319,15 +343,53 @@ async function scenarioFaceToAnimationFlow(browser) {
   await page.close();
 }
 
+async function scenarioTabStateMemory(browser) {
+  log("— TAB STATE MEMORY (remember last step across tabs + reload) —");
+  const page = await bootPage(browser);
+  makeErrorCatcher(page);
+  await page.goto(URL_, { waitUntil: "load" });
+  await connectDemo(page);
+
+  const frameCount = () =>
+    page.evaluate(() => {
+      const s = [...document.querySelectorAll("span")].find((x) => x.textContent.includes("/20 frames"));
+      return s ? s.textContent.trim() : null;
+    });
+
+  await openStudio(page);
+  await waitForText(page, "Roundel Glow");
+  await clickByText(page, "Roundel Glow");
+  await sleep(200);
+  const added = await frameCount();
+
+  await clickByText(page, "Settings");
+  await sleep(200);
+  await clickByText(page, "Library");
+  await sleep(200);
+  const kept = await frameCount();
+
+  await page.reload({ waitUntil: "load" });
+  await sleep(300);
+  const restored = await page.evaluate(() => document.body.innerText.includes("Upload Animation"));
+
+  log("frames before tab switch", added ?? "none");
+  log("frames after tab switch", kept ?? "none");
+  log("animation tab restored after reload", restored ? "yes" : "no");
+  if (added && /^[1-9]/.test(added) && kept === added && restored) {
+    pass("memory: tab state + last tab persist");
+  } else {
+    fail("memory: tab state not remembered", `before=${added} after=${kept} restored=${restored}`);
+  }
+  await page.close();
+}
+
 async function scenarioRetryRecovery(browser) {
   log("— BLE WRITE-RETRY RECOVERY (simulated 35% write failure rate) —");
   const page = await bootPage(browser);
   makeErrorCatcher(page);
   await page.goto(URL_, { waitUntil: "load" });
-  await clickByText(page, "Try Demo Mode");
-  await waitForConnected(page);
-  await clickByText(page, "Faces");
-  await waitForText(page, "Send to Badge");
+  await connectDemo(page);
+  await openFaceSheet(page);
 
   const client = await page.evaluate(() => {
     const c = window.__badgeBleClient;
@@ -339,7 +401,7 @@ async function scenarioRetryRecovery(browser) {
 
   await page.evaluate(() => window.__badgeBleClient.setSimulatedFailureRate(0.35));
   const t0 = Date.now();
-  await clickByText(page, "Send to Badge");
+  await clickByText(page, "Play on Badge");
   await waitForText(page, "uploaded to badge", 120000);
   const transferMs = Date.now() - t0;
 
@@ -362,21 +424,22 @@ async function scenarioBrightness(browser) {
   const page = await bootPage(browser);
   makeErrorCatcher(page);
   await page.goto(URL_, { waitUntil: "load" });
-  await clickByText(page, "Try Demo Mode");
-  await waitForConnected(page);
-  await clickByText(page, "Brightness");
-  await waitForText(page, "Apply to Badge");
+  await connectDemo(page);
+  await clickByText(page, "Settings");
+  await waitForText(page, "Night Mode");
 
+  // Presets apply on tap; the write is done once it lands in the transfer history.
   const presets = ["10%", "30%", "50%", "75%", "100%"];
   const times = [];
   for (let i = 0; i < 10; i++) {
-    await clickByText(page, presets[i % presets.length]);
+    const label = presets[i % presets.length];
     const t0 = Date.now();
-    await clickByText(page, "Apply to Badge");
-    await page.waitForFunction(() => {
-      const b = [...document.querySelectorAll("button")].find((x) => x.textContent.includes("Apply to Badge"));
-      return b && b.disabled;
-    }, { timeout: 15000 });
+    await clickByText(page, label);
+    await page.waitForFunction(
+      (l) => (JSON.parse(localStorage.getItem("e36.transferHistory") || "[]")[0] || {}).name === `Brightness → ${l}`,
+      { timeout: 15000, polling: 20 },
+      label,
+    );
     times.push(Date.now() - t0);
   }
   log("brightness apply — avg", Math.round(times.reduce((a, b) => a + b, 0) / times.length), "ms");
@@ -390,7 +453,7 @@ async function scenarioTabSwitching(browser) {
   const page = await bootPage(browser);
   makeErrorCatcher(page);
   await page.goto(URL_, { waitUntil: "load" });
-  const tabs = ["Garage", "Faces", "Brightness", "Animations", "History", "Debug"];
+  const tabs = ["Garage", "Library", "Playlists", "Triggers", "Settings"];
   const t0 = Date.now();
   for (let i = 0; i < 30; i++) {
     await clickByText(page, tabs[i % tabs.length]);
@@ -408,8 +471,7 @@ async function scenarioMemory(browser) {
   await page.goto(URL_, { waitUntil: "load" });
   await forceGC(page);
   const idle = await jsHeap(page);
-  await clickByText(page, "Try Demo Mode");
-  await waitForConnected(page);
+  await connectDemo(page);
   await forceGC(page);
   const connected = await jsHeap(page);
   await clickByText(page, "Disconnect");
@@ -436,8 +498,7 @@ async function scenarioConcurrency(browser) {
     pages.push(page);
   }
   const t0 = Date.now();
-  await Promise.all(pages.map((p) => clickByText(p, "Try Demo Mode")));
-  await Promise.all(pages.map((p) => waitForConnected(p)));
+  await Promise.all(pages.map((p) => connectDemo(p)));
   log("3 concurrent demo connects", Date.now() - t0, "ms");
   await Promise.all(pages.map((p) => clickByText(p, "Disconnect")));
   await Promise.all(pages.map((p) => waitForDisconnected(p)));
@@ -478,18 +539,27 @@ try {
   });
 
   const tTotal = Date.now();
-  await scenarioBoot(browser);
-  await scenarioEncodeBenchmark(browser);
-  await scenarioConnectLoop(browser);
-  await scenarioFaceTransfers(browser);
-  await scenarioFaceToAnimationFlow(browser);
-  await scenarioRetryRecovery(browser);
-  await scenarioAnimation(browser);
-  await scenarioBrightness(browser);
-  await scenarioTabSwitching(browser);
-  await scenarioMemory(browser);
-  await scenarioConcurrency(browser);
-  await scenarioMobile(browser);
+  const scenarios = [
+    ["boot", scenarioBoot],
+    ["encode", scenarioEncodeBenchmark],
+    ["connect-loop", scenarioConnectLoop],
+    ["face-transfers", scenarioFaceTransfers],
+    ["face-to-animation", scenarioFaceToAnimationFlow],
+    ["tab-state-memory", scenarioTabStateMemory],
+    ["retry-recovery", scenarioRetryRecovery],
+    ["animation", scenarioAnimation],
+    ["brightness", scenarioBrightness],
+    ["tab-switching", scenarioTabSwitching],
+    ["memory", scenarioMemory],
+    ["concurrency", scenarioConcurrency],
+    ["mobile", scenarioMobile],
+  ];
+  for (const [name, fn] of scenarios) {
+    const t0 = Date.now();
+    process.stderr.write(`[scenario] ${name} start\n`);
+    await fn(browser);
+    process.stderr.write(`[scenario] ${name} done (${Date.now() - t0}ms)\n`);
+  }
   log("total suite time", Math.round((Date.now() - tTotal) / 1000), "s");
 } catch (err) {
   fail("suite crashed", String(err));

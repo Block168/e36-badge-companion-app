@@ -1,8 +1,11 @@
 import type { CustomFace, TransferRecord } from "../types";
+import { TAB_IDS, type TabId } from "../types";
 
 const HISTORY_KEY = "e36.transferHistory";
 const CUSTOM_FACES_KEY = "e36.customFaces";
 const BRIGHTNESS_KEY = "e36.lastBrightness";
+const ACTIVE_TAB_KEY = "e36.activeTab";
+
 
 function safeParse<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
@@ -43,4 +46,13 @@ export function loadLastBrightness(): number {
 
 export function saveLastBrightness(value: number): void {
   localStorage.setItem(BRIGHTNESS_KEY, String(value));
+}
+
+export function loadActiveTab(): TabId {
+  const raw = localStorage.getItem(ACTIVE_TAB_KEY);
+  return raw && (TAB_IDS as readonly string[]).includes(raw) ? (raw as TabId) : "garage";
+}
+
+export function saveActiveTab(tab: TabId): void {
+  localStorage.setItem(ACTIVE_TAB_KEY, tab);
 }

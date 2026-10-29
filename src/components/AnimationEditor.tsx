@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Film, Loader2, Play, Plus, Send, Square, Trash2, Wand2, Zap } from "lucide-react";
+import { Loader2, Play, Plus, Square, Upload, WandSparkles } from "lucide-react";
 import { PRESET_FACES } from "../data/presetFaces";
 import { renderPresetFaceDataUrl } from "../lib/presetRender";
 import { normalizeToDisplaySquare } from "../lib/imageEncode";
 import { MAX_ANIMATION_FRAMES } from "../lib/protocol";
 import { EFFECTS, generateEffectFrames, type EffectName } from "../lib/effects";
 import { useBadge } from "../context/BadgeContext";
+import { useAutomation } from "../context/AutomationContext";
 import { BadgePreview } from "./BadgePreview";
+import { NavBar, Row, Section, Toggle } from "./ui";
+import { cn } from "../utils/cn";
 import type { AnimationFrame } from "../types";
 
-export function AnimationEditor() {
-  const { connectionState, brightness, sendAnimation, sendFrame, customFaces } = useBadge();
+const chip =
+  "min-h-10 max-w-44 truncate rounded-full bg-fill px-4 text-[14px] font-medium whitespace-nowrap text-label transition active:scale-[0.96] hover:bg-fill-strong disabled:opacity-40";
+
+/** The Studio: build an animation from faces, uploads and effects, then save or upload it. */
+export function AnimationEditor({ onBack }: { onBack: () => void }) {
+  const { connectionState, brightness, sendAnimation, customFaces, pushToast } = useBadge();
+  const { saveAnimation } = useAutomation();
   const connected = connectionState === "connected";
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -22,7 +30,7 @@ export function AnimationEditor() {
   const [playIndex, setPlayIndex] = useState(0);
   const [marqueeText, setMarqueeText] = useState("E36");
   const [persist, setPersist] = useState(true);
-  const [testingFrameId, setTestingFrameId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!playing || frames.length === 0) return;
@@ -91,11 +99,12 @@ export function AnimationEditor() {
       }
       setEffectRunning(effect);
       try {
+        const meta = EFFECTS.find((e) => e.id === effect);
         const generated = await generateEffectFrames(
           base,
           effect,
-          8,
-          120,
+          meta?.frameCount ?? 8,
+          meta?.frameDurationMs ?? 120,
           effect === "marquee" ? { text: marqueeText } : undefined,
         );
         setFrames((prev) => {
@@ -109,289 +118,225 @@ export function AnimationEditor() {
     [effectRunning, frames, marqueeText],
   );
 
-  const testFrame = useCallback(
-    async (frame: AnimationFrame) => {
-      if (testingFrameId) return;
-      setTestingFrameId(frame.id);
-      try {
-        await sendFrame(frame.dataUrl, "Live Frame");
-      } finally {
-        setTestingFrameId(null);
-      }
-    },
-    [sendFrame, testingFrameId],
-  );
-
-  const moveFrame = (index: number, dir: -1 | 1) => {
-    setFrames((prev) => {
-      const next = [...prev];
-      const target = index + dir;
-      if (target < 0 || target >= next.length) return prev;
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+  const setAllDurations = (durationMs: number) => {
+    const clamped = Math.min(2000, Math.max(50, durationMs));
+    setFrames((prev) => prev.map((f) => ({ ...f, durationMs: clamped })));
   };
 
-  const removeFrame = (id: string) => {
-    setFrames((prev) => prev.filter((f) => f.id !== id));
-  };
+  const clearFrames = () => setFrames([]);
 
-  const updateDuration = (id: string, durationMs: number) => {
-    setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, durationMs } : f)));
-  };
+  const totalMs = frames.reduce((total, frame) => total + frame.durationMs, 0);
+  const avgDuration = frames.length > 0 ? totalMs / frames.length : 0;
+  const fps = avgDuration > 0 ? 1000 / avgDuration : 0;
 
   const totalBytesEstimate = frames.length * 480 * 480 * 2;
 
-  return (
-    <div className="grid gap-6 lg:grid-cols-[1fr,300px]">
-      <div className="space-y-5">
-        <div className="card-track p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Film className="h-5 w-5 text-m-blue-400" />
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="rounded-lg border border-transparent bg-transparent px-1 font-display text-base font-bold uppercase tracking-wide text-white outline-none transition focus:border-zinc-700 focus:bg-zinc-950 focus:px-2 focus:py-1"
-              />
-            </div>
-            <span className="font-display text-xs font-bold uppercase tracking-widest text-zinc-500">
-              {frames.length}/{MAX_ANIMATION_FRAMES} frames · ~{(totalBytesEstimate / 1024).toFixed(0)} KB
-            </span>
-          </div>
+  const handleSave = async () => {
+    if (frames.length === 0) return;
+    setSaving(true);
+    try {
+      await saveAnimation(name, frames);
+      pushToast("success", `"${name}" saved to Library`);
+    } catch (err) {
+      console.error(err);
+      pushToast("error", "Couldn't save the animation on this device");
+    } finally {
+      setSaving(false);
+    }
+  };
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => inputRef.current?.click()}
-              disabled={processing || frames.length >= MAX_ANIMATION_FRAMES}
-              className="btn-ghost !px-3 !py-1.5 !text-xs"
-            >
-              {processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-              Upload Frame
+  const full = frames.length >= MAX_ANIMATION_FRAMES;
+
+  return (
+    <div className="anim-push">
+      <NavBar
+        back="Library"
+        onBack={onBack}
+        title="Studio"
+        trailing={
+          <button onClick={() => void handleSave()} disabled={frames.length === 0 || saving} className="link-btn font-semibold">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+          </button>
+        }
+      />
+
+      <div className="mb-6 flex flex-col items-center gap-4">
+        <BadgePreview
+          faceUrl={frames[playIndex % Math.max(frames.length, 1)]?.dataUrl ?? null}
+          brightness={connected ? brightness : 80}
+          size={220}
+          className="w-full max-w-[220px]"
+        />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          aria-label="Animation name"
+          enterKeyHint="done"
+          className="w-full max-w-sm rounded-[10px] bg-transparent px-3 py-1 text-center text-[22px] font-bold outline-none transition focus:bg-fill"
+        />
+        <p className="text-[15px] text-label-2 tabular-nums">
+          <span>
+            {frames.length}/{MAX_ANIMATION_FRAMES} frames · ~{(totalBytesEstimate / 1024).toFixed(0)} KB
+          </span>
+          {frames.length > 0 && <> · {(totalMs / 1000).toFixed(2)}s · {fps.toFixed(1)} fps</>}
+        </p>
+        <button onClick={() => setPlaying((p) => !p)} disabled={frames.length === 0} className="btn-secondary">
+          {playing ? <Square className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
+          {playing ? "Stop Preview" : "Play Preview"}
+        </button>
+      </div>
+
+      <section className="mb-8">
+        <div className="section-header">
+          <span>Frames</span>
+          {frames.length > 0 && (
+            <button onClick={clearFrames} className="link-btn min-h-0 text-[15px] text-danger normal-case">
+              Clear all
             </button>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleUpload(file);
-                e.target.value = "";
-              }}
-            />
-            <span className="text-xs text-zinc-600">or quick-add a preset:</span>
+          )}
+        </div>
+        <div className="list-group p-4">
+          <button
+            onClick={() => inputRef.current?.click()}
+            disabled={processing || full}
+            className="btn-secondary mb-4 w-full"
+          >
+            {processing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
+            Upload Frame
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleUpload(file);
+              e.target.value = "";
+            }}
+          />
+          <p className="mb-2 text-[13px] text-label-2">Quick-add a preset</p>
+          <div className="scroll-strip mb-1">
             {PRESET_FACES.slice(0, 4).map((p) => (
-              <button
-                key={p.id}
-                onClick={() => addPresetFrame(p.id)}
-                disabled={frames.length >= MAX_ANIMATION_FRAMES}
-                className="rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1 text-[11px] font-medium text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200 disabled:opacity-40"
-              >
+              <button key={p.id} onClick={() => addPresetFrame(p.id)} disabled={full} className={chip}>
                 {p.name}
               </button>
             ))}
-            {customFaces.length > 0 && (
-              <>
-                <span className="text-xs text-zinc-600">saved faces:</span>
+          </div>
+          {customFaces.length > 0 && (
+            <>
+              <p className="mt-3 mb-2 text-[13px] text-label-2">saved faces:</p>
+              <div className="scroll-strip">
                 {customFaces.slice(0, 8).map((f) => (
                   <button
                     key={f.id}
                     data-testid="animation-saved-face"
                     onClick={() => addCustomFrame(f)}
-                    disabled={frames.length >= MAX_ANIMATION_FRAMES}
-                    className="rounded-lg border border-m-blue-400/30 bg-zinc-950 px-2.5 py-1 text-[11px] font-medium text-m-blue-300 transition hover:border-m-blue-400 hover:text-m-blue-100 disabled:opacity-40"
+                    disabled={full}
+                    className={cn(chip, "inline-flex items-center gap-2 pl-1.5")}
                   >
+                    <img src={f.dataUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
                     {f.name}
                   </button>
                 ))}
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          )}
         </div>
+      </section>
 
-        <div className="card-track p-5">
-          <div className="flex items-center gap-2">
-            <Wand2 className="h-5 w-5 text-m-red-400" />
-            <h3 className="font-display text-sm font-bold uppercase tracking-widest text-zinc-200">
-              Quick Effects
-            </h3>
-            <span className="text-[11px] text-zinc-600">applies to the last frame</span>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
+      <section className="mb-8">
+        <div className="section-header">
+          <span>Effects</span>
+          <span className="normal-case">applies to the last frame</span>
+        </div>
+        <div className="list-group p-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {EFFECTS.map((effect) => (
               <button
                 key={effect.id}
                 onClick={() => void runEffect(effect.id)}
                 disabled={effectRunning !== null}
-                className="btn-ghost !px-3 !py-2"
                 title={effect.description}
+                className="flex min-h-11 items-center gap-2 rounded-[10px] bg-fill px-3 text-left text-[14px] font-medium transition active:scale-[0.97] hover:bg-fill-strong disabled:opacity-40"
               >
                 {effectRunning === effect.id ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                 ) : (
-                  <Wand2 className="h-3.5 w-3.5 text-m-blue-400" />
+                  <WandSparkles className="h-4 w-4 shrink-0 text-label-2" />
                 )}
-                <span className="font-display text-[11px] font-bold uppercase tracking-wide">{effect.label}</span>
+                <span className="truncate">{effect.label}</span>
               </button>
             ))}
           </div>
-          <div className="mt-3 flex items-center gap-2">
-            <label htmlFor="marquee-text" className="shrink-0 text-[11px] text-zinc-500">
-              Marquee text:
-            </label>
-            <input
-              id="marquee-text"
-              value={marqueeText}
-              maxLength={24}
-              onChange={(e) => setMarqueeText(e.target.value)}
-              placeholder="E36 M3"
-              className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 font-display text-xs font-bold uppercase tracking-wide text-white outline-none transition placeholder:text-zinc-700 focus:border-zinc-600"
-            />
-          </div>
-          <p className="mt-3 text-[11px] text-zinc-600">
-            Generates an 8-frame looping sequence from the current face — blink, breathe, fade, strobe, rainbow, wipe,
-            scroll, or spin. Marquee replaces the face with scrolling text. Perfect for boot animations.
-          </p>
+          <label htmlFor="marquee-text" className="mt-4 mb-2 block text-[13px] text-label-2">
+            Marquee text
+          </label>
+          <input
+            id="marquee-text"
+            value={marqueeText}
+            maxLength={24}
+            onChange={(e) => setMarqueeText(e.target.value)}
+            placeholder="E36 M3"
+            enterKeyHint="done"
+            autoCapitalize="characters"
+            className="field uppercase"
+          />
         </div>
+        <p className="section-footer">
+          Each effect adds a looping sequence built from the current face. Marquee replaces it with scrolling text.
+        </p>
+      </section>
 
-        <div className="card-track p-5">
-          <h3 className="font-display text-sm font-bold uppercase tracking-widest text-zinc-200">Frames</h3>
-          {frames.length === 0 ? (
-            <p className="mt-3 rounded-xl border border-dashed border-zinc-800 py-10 text-center text-sm text-zinc-500">
-              No frames yet — upload an image or quick-add a preset above to get started.
+      {frames.length > 0 && (
+        <Section title="Timing">
+          <Row
+            title="Duration per frame"
+            accessory={
+              <span className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  enterKeyHint="done"
+                  min={50}
+                  max={2000}
+                  step={10}
+                  value={frames[0].durationMs}
+                  onChange={(e) => setAllDurations(Number(e.target.value) || 150)}
+                  aria-label="Duration per frame in milliseconds"
+                  className="field min-h-9 w-20 text-right"
+                />
+                <span className="text-[15px] text-label-2">ms</span>
+              </span>
+            }
+          />
+          <Row title="Total length" detail={`${totalMs} ms`} />
+        </Section>
+      )}
+
+      <Section footer="Over WiFi the badge keeps this animation after a restart and plays it on power-up.">
+        <Row title="Keep after restart" accessory={<Toggle checked={persist} onChange={setPersist} label="Keep after restart" />} />
+      </Section>
+
+      <div className="action-dock-spacer" />
+      <div className="action-dock">
+        <div className="mx-auto flex max-w-2xl items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-semibold">{name}</p>
+            <p className={cn("truncate text-[13px]", connected ? "text-label-2" : "text-warn")}>
+              {!connected ? "Connect a badge to upload" : frames.length === 0 ? "Add frames to upload" : `${frames.length} frames ready`}
             </p>
-          ) : (
-            <ul className="space-y-2">
-              {frames.map((frame, index) => (
-                <li
-                  key={frame.id}
-                  className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950/50 p-2.5"
-                >
-                  <span className="w-5 text-center text-xs font-semibold text-zinc-500">{index + 1}</span>
-                  <img
-                    src={frame.dataUrl}
-                    alt={`Frame ${index + 1}`}
-                    className="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
-                  />
-                  <div className="flex-1">
-                    <label className="text-[10px] uppercase tracking-wide text-zinc-500">Duration (ms)</label>
-                    <input
-                      type="number"
-                      min={50}
-                      max={2000}
-                      step={10}
-                      value={frame.durationMs}
-                      onChange={(e) => updateDuration(frame.id, Number(e.target.value) || 150)}
-                      className="mt-0.5 w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1 text-sm text-white outline-none focus:border-blue-600"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <button
-                      onClick={() => moveFrame(index, -1)}
-                      disabled={index === 0}
-                      className="rounded-md p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-30"
-                    >
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => moveFrame(index, 1)}
-                      disabled={index === frames.length - 1}
-                      className="rounded-md p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-30"
-                    >
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => void testFrame(frame)}
-                    disabled={!connected || testingFrameId !== null}
-                    title="Send this frame to the badge as a live preview"
-                    className="rounded-md p-1.5 text-sky-400/80 transition hover:bg-sky-950/40 hover:text-sky-300 disabled:opacity-40"
-                  >
-                    {testingFrameId === frame.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Zap className="h-4 w-4" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => removeFrame(frame.id)}
-                    className="rounded-md p-1.5 text-red-400/70 hover:bg-red-950/50 hover:text-red-300"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          </div>
+          <button
+            disabled={!connected || frames.length === 0}
+            onClick={() => sendAnimation(frames, name, { persist })}
+            className="btn-primary shrink-0 px-5"
+          >
+            <Upload className="h-4 w-4" />
+            Upload Animation
+          </button>
         </div>
       </div>
-
-      <aside className="card-track h-fit space-y-4 p-5 lg:sticky lg:top-20">
-        <h3 className="font-display text-sm font-bold uppercase tracking-widest text-zinc-200">Playback Preview</h3>
-        <BadgePreview
-          faceUrl={frames[playIndex % Math.max(frames.length, 1)]?.dataUrl ?? null}
-          brightness={connected ? brightness : 55}
-          connected={connected}
-          size={200}
-          className="mx-auto"
-        />
-        <div className="space-y-3">
-          <button
-            onClick={() => setPlaying((p) => !p)}
-            disabled={frames.length === 0}
-            className="btn-ghost w-full"
-          >
-            {playing ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            {playing ? "Stop Preview" : "Play Preview"}
-          </button>
-          {frames.length > 0 && (
-            <div className="text-sm text-zinc-400">
-              <div className="flex items-center justify-between">
-                <span>Duration:</span>
-                <span>
-                  {frames.reduce((total, frame) => total + frame.durationMs, 0)}ms
-                  ({(
-                    frames.reduce((total, frame) => total + frame.durationMs, 0) /
-                    1000
-                  ).toFixed(2)}s)
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Effective FPS:</span>
-                <span>
-                  {frames.length > 0 ? (
-                    1000 /
-                      (frames.reduce((total, frame) => total + frame.durationMs, 0) /
-                        frames.length)
-                  ).toFixed(1) : "0"}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-        <label className="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2.5">
-          <span className="text-xs text-zinc-400">
-            Persist on badge
-            <span className="block text-[10px] text-zinc-600">survives reboot (WiFi only)</span>
-          </span>
-          <input
-            type="checkbox"
-            checked={persist}
-            onChange={(e) => setPersist(e.target.checked)}
-            className="h-4 w-4 accent-blue-600"
-          />
-        </label>
-        <button
-          disabled={!connected || frames.length === 0}
-          onClick={() => sendAnimation(frames, name, { persist })}
-          className="btn-primary w-full"
-        >
-          <Send className="h-4 w-4" />
-          Upload Animation
-        </button>
-        {!connected && <p className="text-center text-xs text-amber-400/80">Connect a badge to enable transfers.</p>}
-      </aside>
     </div>
   );
 }

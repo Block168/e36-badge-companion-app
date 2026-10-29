@@ -20,6 +20,19 @@ interface ToastMessage {
 
 type Transport = "wifi" | "ble" | "demo";
 
+export interface SendOptions {
+  /** Automation-driven send: no success toast, no blocking progress modal. */
+  quiet?: boolean;
+  /** Save as the badge's startup content (WiFi firmware). Defaults to true. */
+  persist?: boolean;
+}
+
+export interface ActiveTransfer {
+  label: string;
+  percent: number;
+  background?: boolean;
+}
+
 interface BadgeContextValue {
   connectionState: ConnectionState;
   bleSupported: boolean;
@@ -32,15 +45,20 @@ interface BadgeContextValue {
   customFaces: CustomFace[];
   brightness: number;
   toasts: ToastMessage[];
-  activeTransfer: { label: string; percent: number } | null;
+  activeTransfer: ActiveTransfer | null;
   connect: () => Promise<void>;
   connectWifi: () => Promise<void>;
   connectDemo: () => Promise<void>;
   disconnect: () => Promise<void>;
   setBrightness: (value: number) => void;
-  commitBrightness: (value: number) => Promise<void>;
-  sendFace: (dataUrl: string, name: string) => Promise<void>;
-  sendAnimation: (frames: AnimationFrame[], name: string, opts?: { persist?: boolean }) => Promise<void>;
+  commitBrightness: (value: number) => Promise<boolean>;
+  /** Resolves true when the badge accepted the face. */
+  sendFace: (dataUrl: string, name: string, opts?: SendOptions) => Promise<boolean>;
+  sendAnimation: (
+    frames: AnimationFrame[],
+    name: string,
+    opts?: SendOptions,
+  ) => Promise<boolean>;
   sendFrame: (dataUrl: string, name: string) => Promise<void>;
   addCustomFace: (face: CustomFace) => void;
   removeCustomFace: (id: string) => void;
@@ -66,7 +84,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
   const [customFaces, setCustomFaces] = useState<CustomFace[]>(() => loadCustomFaces());
   const [brightness, setBrightnessState] = useState<number>(() => loadLastBrightness());
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [activeTransfer, setActiveTransfer] = useState<{ label: string; percent: number } | null>(null);
+  const [activeTransfer, setActiveTransfer] = useState<ActiveTransfer | null>(null);
 
   const wifiSupported = BadgeWifiClient.isSupported();
   const bleSupported = BadgeBleClient.isSupported();
@@ -242,7 +260,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
   const commitBrightness = useCallback(
     async (value: number) => {
       const client = clientRef.current;
-      if (connectionState !== "connected" || !client) return;
+      if (connectionState !== "connected" || !client) return false;
       try {
         await client.setBrightness(value);
         saveLastBrightness(value);
@@ -260,9 +278,11 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
           saveHistory(next);
           return next;
         });
+        return true;
       } catch (err) {
         pushToast("error", "Failed to update brightness");
         appendLog("error", "Brightness write failed", String(err));
+        return false;
       }
     },
     [appendLog, connectionState, pushToast],
@@ -277,20 +297,21 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const sendFace = useCallback(
-    async (dataUrl: string, name: string) => {
+    async (dataUrl: string, name: string, opts?: SendOptions) => {
       const client = clientRef.current;
       if (connectionState !== "connected" || !client) {
-        pushToast("error", "Connect to a badge first");
-        return;
+        if (!opts?.quiet) pushToast("error", "Connect to a badge first");
+        return false;
       }
       const startedAt = Date.now();
-      setActiveTransfer({ label: `Sending "${name}"`, percent: 0 });
+      const background = opts?.quiet === true;
+      setActiveTransfer({ label: `Sending "${name}"`, percent: 0, background });
       const onProgress: ProgressHandler = (progress) => {
-        setActiveTransfer({ label: `Sending "${name}"`, percent: progress.percent });
+        setActiveTransfer({ label: `Sending "${name}"`, percent: progress.percent, background });
       };
       try {
         const bytes = await client.sendFace(dataUrl, name, onProgress);
-        await client.saveConfig({ active: "face" });
+        if (opts?.persist !== false) await client.saveConfig({ active: "face" });
         recordTransfer({
           id: crypto.randomUUID(),
           type: "face",
@@ -300,7 +321,8 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
           durationMs: Date.now() - startedAt,
           success: true,
         });
-        pushToast("success", `"${name}" uploaded to badge`);
+        if (!opts?.quiet) pushToast("success", `"${name}" uploaded to badge`);
+        return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         recordTransfer({
@@ -314,6 +336,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
           detail: message,
         });
         pushToast("error", `Failed to send "${name}"`);
+        return false;
       } finally {
         setActiveTransfer(null);
       }
@@ -322,21 +345,26 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
   );
 
   const sendAnimation = useCallback(
-    async (frames: AnimationFrame[], name: string, opts?: { persist?: boolean }) => {
+    async (frames: AnimationFrame[], name: string, opts?: SendOptions) => {
       const client = clientRef.current;
       if (connectionState !== "connected" || !client) {
-        pushToast("error", "Connect to a badge first");
-        return;
+        if (!opts?.quiet) pushToast("error", "Connect to a badge first");
+        return false;
       }
       if (frames.length === 0) {
         pushToast("error", "Add at least one frame first");
-        return;
+        return false;
       }
       const startedAt = Date.now();
-      setActiveTransfer({ label: `Uploading animation "${name}"`, percent: 0 });
+      const background = opts?.quiet === true;
+      setActiveTransfer({ label: `Uploading animation "${name}"`, percent: 0, background });
       const onProgress: ProgressHandler = (progress) => {
         const frameLabel = progress.totalFrames ? ` (frame ${progress.frameIndex}/${progress.totalFrames})` : "";
-        setActiveTransfer({ label: `Uploading animation "${name}"${frameLabel}`, percent: progress.percent });
+        setActiveTransfer({
+          label: `Uploading animation "${name}"${frameLabel}`,
+          percent: progress.percent,
+          background,
+        });
       };
       try {
         const bytes = await client.sendAnimation(frames, onProgress);
@@ -353,7 +381,8 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
           success: true,
           detail: `${frames.length} frames`,
         });
-        pushToast("success", `Animation "${name}" uploaded`);
+        if (!opts?.quiet) pushToast("success", `Animation "${name}" uploaded`);
+        return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         recordTransfer({
@@ -367,6 +396,7 @@ export function BadgeProvider({ children }: { children: ReactNode }) {
           detail: message,
         });
         pushToast("error", `Failed to upload animation "${name}"`);
+        return false;
       } finally {
         setActiveTransfer(null);
       }

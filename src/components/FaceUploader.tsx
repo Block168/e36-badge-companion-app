@@ -1,13 +1,11 @@
 import { useCallback, useRef, useState } from "react";
-import { ImagePlus, Loader2, UploadCloud } from "lucide-react";
 import { normalizeToDisplaySquare } from "../lib/imageEncode";
 import { useBadge } from "../context/BadgeContext";
-import { cn } from "../utils/cn";
 
-export function FaceUploader() {
+/** Image picker that crops/scales to the badge's 480×480 display and saves to the Library. */
+export function useFaceUpload() {
   const { addCustomFace, pushToast } = useBadge();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [dragOver, setDragOver] = useState(false);
   const [processing, setProcessing] = useState(false);
 
   const handleFile = useCallback(
@@ -18,8 +16,8 @@ export function FaceUploader() {
       }
       setProcessing(true);
       try {
-        const reader = new FileReader();
         const raw = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(file);
@@ -31,7 +29,7 @@ export function FaceUploader() {
           dataUrl: normalized,
           createdAt: Date.now(),
         });
-        pushToast("success", "Face added — cropped & scaled to 480×480");
+        pushToast("success", "Face added to Library");
       } catch (err) {
         pushToast("error", "Couldn't process that image");
         console.error(err);
@@ -42,53 +40,19 @@ export function FaceUploader() {
     [addCustomFace, pushToast],
   );
 
-  return (
-    <div
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDragOver(true);
-      }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragOver(false);
-        const file = e.dataTransfer.files?.[0];
+  const input = (
+    <input
+      ref={inputRef}
+      type="file"
+      accept="image/*"
+      className="hidden"
+      onChange={(e) => {
+        const file = e.target.files?.[0];
         if (file) void handleFile(file);
+        e.target.value = "";
       }}
-      className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-4 py-6 text-center transition sm:px-6 sm:py-8",
-        dragOver ? "border-m-blue-500 bg-m-blue-500/10" : "border-zinc-700 bg-zinc-950/40",
-      )}
-    >
-      {processing ? (
-        <Loader2 className="h-8 w-8 animate-spin text-m-blue-400" />
-      ) : (
-        <UploadCloud className="h-8 w-8 text-zinc-500" />
-      )}
-      <div>
-        <p className="hidden text-sm font-medium text-zinc-300 [@media(hover:hover)]:block">Drag & drop an image here</p>
-        <p className="hidden text-xs text-zinc-500 [@media(hover:hover)]:block">or click below to browse your files</p>
-        <p className="text-sm font-medium text-zinc-300 [@media(hover:hover)]:hidden">Pick a photo or take one</p>
-      </div>
-      <button
-        onClick={() => inputRef.current?.click()}
-        disabled={processing}
-        className="btn-ghost min-h-11 w-full max-w-xs sm:min-h-0 sm:w-auto sm:!px-3 sm:!py-1.5 sm:!text-xs"
-      >
-        <ImagePlus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-        Choose Image
-      </button>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void handleFile(file);
-          e.target.value = "";
-        }}
-      />
-    </div>
+    />
   );
+
+  return { input, pick: () => inputRef.current?.click(), handleFile, processing };
 }

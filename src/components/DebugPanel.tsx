@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { Bug, Radio, Trash2 } from "lucide-react";
 import { useBadge } from "../context/BadgeContext";
 import { cn } from "../utils/cn";
 import type { LogLevel } from "../types";
 import { CHARACTERISTIC_LABELS, E36_SERVICE_UUID } from "../lib/protocol";
+import { NavBar, Row, Section } from "./ui";
 
 const LEVEL_STYLES: Record<LogLevel, string> = {
-  info: "text-sky-300",
-  success: "text-emerald-300",
-  warn: "text-amber-300",
-  error: "text-red-300",
-  gatt: "text-violet-300",
+  info: "text-link",
+  success: "text-go",
+  warn: "text-warn",
+  error: "text-danger",
+  gatt: "text-[#bf5af2]",
 };
 
-export function DebugPanel() {
+const LEVELS: (LogLevel | "all")[] = ["all", "info", "gatt", "success", "warn", "error"];
+
+export function DebugPanel({ onBack }: { onBack: () => void }) {
   const { logs, clearLogs, connectionState, isSimulated } = useBadge();
   const [filter, setFilter] = useState<LogLevel | "all">("all");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -21,97 +23,63 @@ export function DebugPanel() {
   const filteredLogs = filter === "all" ? logs : logs.filter((l) => l.level === filter);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [filteredLogs.length]);
 
-  const levels: (LogLevel | "all")[] = ["all", "info", "gatt", "success", "warn", "error"];
-
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="card-track min-w-0 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Bug className="h-5 w-5 text-violet-400" />
-            <h3 className="font-display text-base font-bold uppercase tracking-widest text-white sm:text-lg">
-              GATT Debug Console
-            </h3>
-          </div>
-          <button
-            onClick={clearLogs}
-            className="chip min-h-10 border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-red-800 hover:text-red-300 sm:min-h-0"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Clear Logs
+    <div className="anim-push">
+      <NavBar
+        back="Settings"
+        onBack={onBack}
+        title="Debug Console"
+        trailing={
+          <button onClick={clearLogs} className="link-btn text-danger">
+            Clear
           </button>
-        </div>
+        }
+      />
 
-        <div className="mt-3 scroll-strip">
-          {levels.map((l) => (
-            <button
-              key={l}
-              onClick={() => setFilter(l)}
-              aria-pressed={filter === l}
-              className={cn(
-                "pill !text-[10px]",
-                filter === l ? "bg-violet-600 text-white" : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800",
-              )}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
-
-        <div
-          ref={scrollRef}
-          className="mt-4 h-[55vh] overflow-y-auto overscroll-contain rounded-xl border border-zinc-800 bg-black/60 p-3 font-mono text-[11px] leading-relaxed sm:h-96 sm:text-xs"
-        >
-          {filteredLogs.length === 0 ? (
-            <p className="text-zinc-600">No logs yet. Connect to a badge to see live GATT activity.</p>
-          ) : (
-            filteredLogs.map((log) => (
-              <div key={log.id} className="flex flex-wrap gap-x-2 py-0.5 sm:flex-nowrap">
-                <span className="shrink-0 text-zinc-600">
-                  {new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}
-                </span>
-                <span className={cn("shrink-0 font-semibold uppercase", LEVEL_STYLES[log.level])}>
-                  [{log.level}]
-                </span>
-                <span className="min-w-0 break-words text-zinc-300">{log.message}</span>
-                {log.detail && <span className="min-w-0 break-all text-zinc-600">— {log.detail}</span>}
-              </div>
-            ))
-          )}
-        </div>
+      <div className="scroll-strip mb-4">
+        {LEVELS.map((l) => (
+          <button
+            key={l}
+            onClick={() => setFilter(l)}
+            aria-pressed={filter === l}
+            className={cn(
+              "min-h-9 rounded-full px-4 text-[13px] font-semibold capitalize transition active:scale-95",
+              filter === l ? "bg-label text-black" : "bg-fill text-label-2",
+            )}
+          >
+            {l}
+          </button>
+        ))}
       </div>
 
-      <aside className="card-track h-fit min-w-0 space-y-4 p-4 sm:p-5">
-        <div className="flex items-center gap-2">
-          <Radio className="h-4 w-4 text-emerald-400" />
-          <h3 className="font-display text-sm font-bold uppercase tracking-widest text-zinc-200">
-            GATT Inspector
-          </h3>
-        </div>
-        <div className="space-y-1 text-xs">
-          <p className="text-zinc-500">Connection</p>
-          <p className="font-mono text-zinc-300">{connectionState}{isSimulated ? " (simulated)" : ""}</p>
-        </div>
-        <div className="space-y-1 text-xs">
-          <p className="text-zinc-500">Primary Service</p>
-          <p className="break-all font-mono text-[11px] text-zinc-400">{E36_SERVICE_UUID}</p>
-        </div>
-        <div className="space-y-2 text-xs">
-          <p className="text-zinc-500">Characteristics</p>
-          <div className="space-y-2">
-            {Object.entries(CHARACTERISTIC_LABELS).map(([uuid, label]) => (
-              <div key={uuid} className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-2.5">
-                <p className="font-semibold text-zinc-300">{label}</p>
-                <p className="mt-0.5 break-all font-mono text-[10px] text-zinc-600">{uuid}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </aside>
+      <div
+        ref={scrollRef}
+        className="mb-8 h-[55vh] overflow-y-auto overscroll-contain rounded-xl bg-surface p-3 font-mono text-[11px] leading-relaxed sm:text-xs"
+      >
+        {filteredLogs.length === 0 ? (
+          <p className="text-label-3">No logs yet. Connect to a badge to see live GATT activity.</p>
+        ) : (
+          filteredLogs.map((log) => (
+            <div key={log.id} className="flex flex-wrap gap-x-2 py-0.5">
+              <span className="shrink-0 text-label-3">{new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}</span>
+              <span className={cn("shrink-0 font-semibold uppercase", LEVEL_STYLES[log.level])}>[{log.level}]</span>
+              <span className="min-w-0 break-words text-label">{log.message}</span>
+              {log.detail && <span className="min-w-0 break-all text-label-3">— {log.detail}</span>}
+            </div>
+          ))
+        )}
+      </div>
+
+      <Section title="GATT Inspector">
+        <Row title="Connection" detail={`${connectionState}${isSimulated ? " (simulated)" : ""}`} />
+        <Row title="Primary service" subtitle={<span className="font-mono break-all whitespace-normal">{E36_SERVICE_UUID}</span>} />
+        {Object.entries(CHARACTERISTIC_LABELS).map(([uuid, label]) => (
+          <Row key={uuid} title={label} subtitle={<span className="font-mono break-all whitespace-normal">{uuid}</span>} />
+        ))}
+      </Section>
     </div>
   );
 }

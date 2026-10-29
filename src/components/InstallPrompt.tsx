@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Download, MonitorSmartphone, Share2, Smartphone, X } from "lucide-react";
+import { Download, Share2, Smartphone, X } from "lucide-react";
 import { cn } from "../utils/cn";
 
 function isIOS(): boolean {
@@ -57,68 +57,50 @@ export function InstallPrompt({ className }: { className?: string }) {
   if (dismissed || standalone) return null;
 
   return (
-    <div className={cn("card-track p-5", className)}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-m-blue-500 to-m-blue-700 text-white shadow-lg shadow-m-blue-900/40">
-            <MonitorSmartphone className="h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="font-display text-sm font-bold uppercase tracking-widest text-white">Install Faces</h3>
-            <p className="mt-0.5 text-xs text-zinc-500">
-              {ios
-                ? "Works offline, full screen, like a native app."
-                : "Run it offline, full screen, like a native app."}
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => setDismissed(true)}
-          className="-m-1.5 rounded-md p-2.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
-          aria-label="Dismiss"
-        >
+    <section className={cn("mb-8", className)}>
+      <div className="section-header">
+        <span>Install</span>
+        <button onClick={() => setDismissed(true)} className="link-btn min-h-0 text-[15px] normal-case" aria-label="Dismiss">
           <X className="h-4 w-4" />
         </button>
       </div>
-
-      {deferred ? (
-        <button onClick={handleInstall} disabled={installing} className="btn-primary mt-4 min-h-12 w-full sm:min-h-0">
-          <Download className="h-4 w-4" />
-          {installing ? "Installing…" : "Add to Home Screen"}
-        </button>
-      ) : ios ? (
-        <div className="mt-4 space-y-2 text-xs text-zinc-400">
-          <p className="font-display text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-            iOS install steps
-          </p>
-          <ol className="space-y-1.5">
-            <li className="flex items-center gap-2">
-              <span className="chip border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] text-zinc-300">1</span>
-              Tap the <Share2 className="mx-0.5 inline h-3.5 w-3.5 text-m-blue-400" /> Share button in Safari
+      <div className="list-group">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <img src="./icons/icon-192.png" alt="" className="h-12 w-12 shrink-0 rounded-[12px]" />
+          <div className="min-w-0">
+            <p className="text-[16px] font-semibold">Add Faces to your Home Screen</p>
+            <p className="text-[13px] text-label-2">Opens full screen and works offline, like a native app.</p>
+          </div>
+        </div>
+        {deferred ? (
+          <div className="px-4 pb-4">
+            <button onClick={handleInstall} disabled={installing} className="btn-primary w-full">
+              <Download className="h-5 w-5" />
+              {installing ? "Installing…" : "Install App"}
+            </button>
+          </div>
+        ) : ios ? (
+          <ol className="border-t border-sep/60 px-4 py-3 text-[15px] text-label-2">
+            <li className="flex min-h-10 items-center gap-3">
+              <span className="w-4 text-label-3 tabular-nums">1</span>
+              Tap <Share2 className="h-4 w-4 text-link" /> Share in Safari
             </li>
-            <li className="flex items-center gap-2">
-              <span className="chip border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] text-zinc-300">2</span>
-              Tap <span className="font-semibold text-zinc-200">Add to Home Screen</span>
+            <li className="flex min-h-10 items-center gap-3">
+              <span className="w-4 text-label-3 tabular-nums">2</span>
+              Choose <span className="text-label">Add to Home Screen</span>
             </li>
-            <li className="flex items-center gap-2">
-              <span className="chip border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] text-zinc-300">3</span>
-              Tap <span className="font-semibold text-zinc-200">Add</span> — done, it's on your home screen
+            <li className="flex min-h-10 items-center gap-3">
+              <span className="w-4 text-label-3 tabular-nums">3</span>
+              Tap <span className="text-label">Add</span>
             </li>
           </ol>
-          <p className="pt-1 text-[11px] text-zinc-600">
-            Keep this tab open until it says "Added". iOS installs instantly — no internet needed afterwards.
+        ) : (
+          <p className="flex items-start gap-3 border-t border-sep/60 px-4 py-3 text-[13px] text-label-2">
+            <Smartphone className="mt-0.5 h-4 w-4 shrink-0" />
+            In Chrome or Edge, open the ⋮ menu and choose Add to Home Screen or Install App.
           </p>
-        </div>
-      ) : (
-        <div className="mt-4 flex items-center gap-3 rounded-xl border border-zinc-800 bg-black/30 px-4 py-3 text-xs text-zinc-400">
-          <Smartphone className="h-4 w-4 shrink-0 text-m-blue-400" />
-          <p>
-            In Chrome/Edge, tap the <span className="font-semibold text-zinc-200">⋮ menu → Add to Home Screen</span> or{" "}
-            <span className="font-semibold text-zinc-200">Install App</span>. You'll get a one-tap install button here
-            when it's available.
-          </p>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </section>
   );
 }

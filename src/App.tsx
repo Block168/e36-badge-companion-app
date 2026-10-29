@@ -1,37 +1,43 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BadgeProvider } from "./context/BadgeContext";
-import { AppShell, type TabId } from "./components/AppShell";
-import { FaceGallery } from "./components/FaceGallery";
-import { BrightnessPanel } from "./components/BrightnessPanel";
-import { AnimationEditor } from "./components/AnimationEditor";
-import { HistoryPanel } from "./components/HistoryPanel";
-import { DebugPanel } from "./components/DebugPanel";
+import { AutomationProvider } from "./context/AutomationContext";
+import { AppShell } from "./components/AppShell";
+import { GarageScreen } from "./components/GarageScreen";
+import { LibraryScreen } from "./components/LibraryScreen";
+import { PlaylistsScreen } from "./components/PlaylistsScreen";
+import { TriggersScreen } from "./components/TriggersScreen";
+import { SettingsScreen } from "./components/SettingsScreen";
 import { Toasts } from "./components/Toasts";
 import { ProgressModal } from "./components/ProgressModal";
-import { ConnectionCard } from "./components/ConnectionCard";
-import { InstallPrompt } from "./components/InstallPrompt";
+import { loadActiveTab, saveActiveTab } from "./lib/storage";
+import type { TabId } from "./types";
 
-
-function DashboardTab() {
-  return (
-    <div className="space-y-6">
-      <ConnectionCard />
-      <InstallPrompt />
-    </div>
-  );
-}
+const SCREENS: Record<TabId, () => React.JSX.Element> = {
+  garage: GarageScreen,
+  library: LibraryScreen,
+  playlists: PlaylistsScreen,
+  triggers: TriggersScreen,
+  settings: SettingsScreen,
+};
 
 function AppContent() {
-  const [tab, setTab] = useState<TabId>("dashboard");
+  const [tab, setTab] = useState<TabId>(() => loadActiveTab());
 
+  useEffect(() => {
+    saveActiveTab(tab);
+  }, [tab]);
+
+  // Every screen stays mounted so in-progress work (Studio frames, open sheets) survives tab switches.
   return (
     <AppShell activeTab={tab} onTabChange={setTab}>
-      {tab === "dashboard" && <DashboardTab />}
-      {tab === "faces" && <FaceGallery />}
-      {tab === "brightness" && <BrightnessPanel />}
-      {tab === "animation" && <AnimationEditor />}
-      {tab === "history" && <HistoryPanel />}
-      {tab === "debug" && <DebugPanel />}
+      {(Object.keys(SCREENS) as TabId[]).map((id) => {
+        const Screen = SCREENS[id];
+        return (
+          <div key={id} className={tab === id ? undefined : "hidden"} inert={tab !== id}>
+            <Screen />
+          </div>
+        );
+      })}
       <Toasts />
       <ProgressModal />
     </AppShell>
@@ -41,7 +47,9 @@ function AppContent() {
 export default function App() {
   return (
     <BadgeProvider>
-      <AppContent />
+      <AutomationProvider>
+        <AppContent />
+      </AutomationProvider>
     </BadgeProvider>
   );
 }
